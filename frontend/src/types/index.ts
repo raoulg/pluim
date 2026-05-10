@@ -57,6 +57,7 @@ export interface Grade {
   value: string
   comment: string | null
   graded_by: User
+  viewed_at: string | null
   created_at: string
   updated_at: string
 }

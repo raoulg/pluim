@@ -107,6 +107,7 @@ class Grade(Base):
     value: Mapped[str] = mapped_column(String(50), nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     graded_by_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    viewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

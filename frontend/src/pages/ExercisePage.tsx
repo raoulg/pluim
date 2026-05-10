@@ -11,7 +11,7 @@ import {
   submitUrl,
   downloadUrl,
 } from '../api/submissions'
-import { getMyGrade } from '../api/grades'
+import { getMyGrade, markGradeViewed } from '../api/grades'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -22,7 +22,7 @@ export default function ExercisePage() {
   const { courseId, exerciseId } = useParams<{ courseId: string; exerciseId: string }>()
   const cid = Number(courseId)
   const eid = Number(exerciseId)
-  const { user } = useAuth()
+  const { user, refreshUnviewedCount } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [exercise, setExercise] = useState<Exercise | null>(null)
@@ -51,7 +51,12 @@ export default function ExercisePage() {
       .catch(() => null)
 
     getMyFinalization(eid).then(setFinalization).catch(() => null)
-    getMyGrade(eid).then(setGrade).catch(() => null)
+    getMyGrade(eid).then((g) => {
+      setGrade(g)
+      if (g) {
+        markGradeViewed(eid).then(() => refreshUnviewedCount())
+      }
+    }).catch(() => null)
   }, [cid, eid])
 
   const canSubmit = () => {

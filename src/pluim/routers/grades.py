@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pluim.database import get_db
@@ -56,6 +58,7 @@ async def set_grade(
         grade.value = data.value
         grade.comment = data.comment
         grade.graded_by_id = grader.id
+        grade.viewed_at = None  # reset so student sees notification
     else:
         grade = Grade(
             user_id=student_id,
@@ -91,6 +94,32 @@ async def delete_grade(
         raise HTTPException(status_code=404, detail="Grade not found")
     await db.delete(grade)
     await db.commit()
+
+
+@router.post("/exercises/{exercise_id}/grades/me/mark-viewed", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_grade_viewed(
+    exercise_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Grade).where(Grade.user_id == user.id, Grade.exercise_id == exercise_id)
+    )
+    grade = result.scalar_one_or_none()
+    if grade and grade.viewed_at is None:
+        grade.viewed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+
+@router.get("/grades/me/unviewed-count")
+async def get_unviewed_grade_count(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(func.count(Grade.id)).where(Grade.user_id == user.id, Grade.viewed_at.is_(None))
+    )
+    return {"count": result.scalar_one()}
 
 
 def _validate_grade_value(value: str, exercise: Exercise) -> None:

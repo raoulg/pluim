@@ -1,11 +1,13 @@
+import io
 import os
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
-from sqlalchemy import select
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pluim.config import settings
@@ -106,6 +108,53 @@ async def finalize_submission(
     await db.commit()
     await db.refresh(fin)
     return fin
+
+
+@router.get("/{exercise_id}/submissions/download-all")
+async def download_all_submissions(
+    exercise_id: int,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    subq = (
+        select(func.max(Submission.id))
+        .where(Submission.exercise_id == exercise_id, Submission.submission_type == "file")
+        .group_by(Submission.user_id)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(Submission, User)
+        .join(User, User.id == Submission.user_id)
+        .where(Submission.id.in_(subq))
+        .order_by(User.github_username)
+    )
+    rows = result.all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No file submissions found for this exercise")
+
+    zip_buffer = io.BytesIO()
+    added = 0
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for sub, student in rows:
+            if not sub.file_path:
+                continue
+            full_path = Path(settings.upload_dir) / sub.file_path
+            if not full_path.exists():
+                continue
+            ext = Path(sub.original_filename or "file").suffix
+            zf.write(str(full_path), f"{student.github_username}{ext}")
+            added += 1
+
+    if added == 0:
+        raise HTTPException(status_code=404, detail="No files found on server")
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=exercise_{exercise_id}_submissions.zip"},
+    )
 
 
 @router.get("/{exercise_id}/submissions", response_model=list[SubmissionOut])

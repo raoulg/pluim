@@ -153,6 +153,7 @@ class GradeOut(BaseModel):
     value: str
     comment: str | None
     graded_by: UserOut
+    viewed_at: UTCDatetime | None
     created_at: UTCDatetime
     updated_at: UTCDatetime
 

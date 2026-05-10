@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Navbar() {
-  const { user, logout } = useAuth()
+  const { user, logout, unviewedGradeCount } = useAuth()
   const nav = useNavigate()
 
   const handleLogout = () => {
@@ -27,6 +27,14 @@ export default function Navbar() {
             {user.is_admin && (
               <Link to="/admin" className="text-sm text-slate-400 hover:text-fuchsia-300 transition-colors">
                 Admin
+              </Link>
+            )}
+            {!user.is_admin && unviewedGradeCount > 0 && (
+              <Link to="/" className="flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
+                  {unviewedGradeCount}
+                </span>
+                new grade{unviewedGradeCount !== 1 ? 's' : ''}
               </Link>
             )}
             <div className="flex items-center gap-2">
