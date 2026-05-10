@@ -42,6 +42,8 @@ Open `http://YOUR_VM_IP` in your browser. Log in with GitHub — your account ge
 1. Go to **Admin** → create a course → share the enrollment code with students
 2. From the course page → **Manage** to add exercises with due dates, allowed file types, and grading rubrics
 3. From the course page → **Grade overview** to see all students × exercises in a grid, with inline grade input
+4. In the grade overview, hover a student row and click **Review →** to open a side panel — browse all their submissions per exercise, view PDFs embedded in the browser, and enter grades and feedback
+5. Click **↓ all submissions** in any exercise column header to download a ZIP of all students' latest file submissions for that exercise
 
 ### As a student
 
@@ -49,6 +51,7 @@ Open `http://YOUR_VM_IP` in your browser. Log in with GitHub — your account ge
 2. Enter an enrollment code on the dashboard to join a course
 3. Click an exercise to view the description, rubric, and submit a file or URL
 4. Your grades appear on the exercise page once the professor grades them
+5. A notification badge in the navbar shows how many new or updated grades you haven't seen yet — it clears automatically when you visit the exercise page
 
 ---
 
@@ -62,6 +65,9 @@ Open `http://YOUR_VM_IP` in your browser. Log in with GitHub — your account ge
 - Resubmission allowed at any time
 - Grade scales: numeric (e.g. 0–10, 0–2) or Pass/Fail, with optional comments
 - Professor grading grid: one screen, all students × all exercises
+- Quick review panel: per-student side drawer with PDF embed, grade form, and feedback across all exercises
+- Bulk download: ZIP of all students' latest file submissions per exercise
+- Student grade notifications: navbar badge clears when the student views their grade
 - Admin panel to manage users and toggle admin rights
 - Dark mode UI
 
