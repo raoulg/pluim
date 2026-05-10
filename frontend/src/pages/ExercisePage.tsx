@@ -12,6 +12,9 @@ import {
   downloadUrl,
 } from '../api/submissions'
 import { getMyGrade, markGradeViewed, addStudentFeedback } from '../api/grades'
+import MDEditor from '@uiw/react-md-editor'
+import '@uiw/react-md-editor/markdown-editor.css'
+import '@uiw/react-markdown-preview/markdown.css'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -248,7 +251,7 @@ export default function ExercisePage() {
                           <span className="text-xs font-medium text-slate-300">{fb.author.github_username}</span>
                           <span className="text-xs text-slate-500">{format(new Date(fb.created_at), 'MMM d, yyyy HH:mm')}</span>
                         </div>
-                        <p className="text-sm text-slate-200 whitespace-pre-wrap">{fb.content}</p>
+                        <MarkdownRenderer content={fb.content} />
                       </div>
                     ))}
                   </div>
@@ -257,13 +260,14 @@ export default function ExercisePage() {
                 {/* Student can add a remark */}
                 {!user?.is_admin && (
                   <div className="pt-1 space-y-2">
-                    <textarea
-                      value={remarkText}
-                      onChange={(e) => setRemarkText(e.target.value)}
-                      placeholder="Add a remark…"
-                      rows={2}
-                      className="w-full px-3 py-2 text-sm bg-surface-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
-                    />
+                    <div data-color-mode="dark">
+                      <MDEditor
+                        value={remarkText}
+                        onChange={(v) => setRemarkText(v ?? '')}
+                        preview="edit"
+                        height={120}
+                      />
+                    </div>
                     <button
                       onClick={handleAddRemark}
                       disabled={addingRemark || !remarkText.trim()}

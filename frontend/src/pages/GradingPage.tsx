@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
+import MDEditor from '@uiw/react-md-editor'
+import '@uiw/react-md-editor/markdown-editor.css'
+import '@uiw/react-markdown-preview/markdown.css'
 import { getCourseOverview } from '../api/courses'
 import { setGrade, addTeacherFeedback } from '../api/grades'
 import client from '../api/client'
 import Layout from '../components/Layout'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { CourseOverview, Exercise, Feedback, Grade, OverviewCell, OverviewRow, Submission, User } from '../types'
 
 export default function GradingPage() {
@@ -608,13 +612,14 @@ function ReviewArea({
             </div>
           )}
           <div className="pt-2 border-t border-violet-900/30 space-y-2">
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Add a remark…"
-              rows={2}
-              className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-500 resize-none"
-            />
+            <div data-color-mode="dark">
+              <MDEditor
+                value={feedbackText}
+                onChange={(v) => setFeedbackText(v ?? '')}
+                preview="edit"
+                height={120}
+              />
+            </div>
             <button
               onClick={handleAddFeedback}
               disabled={addingFeedback || !feedbackText.trim()}
@@ -636,7 +641,7 @@ function FeedbackEntry({ feedback }: { feedback: Feedback }) {
         <span className="text-xs font-medium text-slate-300">{feedback.author.github_username}</span>
         <span className="text-xs text-slate-500">{format(new Date(feedback.created_at), 'MMM d, yyyy HH:mm')}</span>
       </div>
-      <p className="text-sm text-slate-200 whitespace-pre-wrap">{feedback.content}</p>
+      <MarkdownRenderer content={feedback.content} />
     </div>
   )
 }
