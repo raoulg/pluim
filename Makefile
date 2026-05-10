@@ -17,7 +17,7 @@ RED   := \033[31m
 .DEFAULT_GOAL := help
 .PHONY: help setup secret build up down restart logs status \
         logs-backend logs-frontend shell-backend shell-frontend \
-        restart-backend restart-frontend \
+        restart-backend restart-frontend deploy \
         dev-backend dev-frontend install \
         backup db clean clean-volumes nuke
 
@@ -88,6 +88,12 @@ build-backend: _require-env ## Rebuild only the backend image
 
 build-frontend: _require-env ## Rebuild only the frontend image
 	$(COMPOSE) build $(FRONTEND)
+
+deploy: _require-env ## Pull, rebuild images, and restart (use this after git pull)
+	$(COMPOSE) down
+	$(COMPOSE) build
+	$(COMPOSE) up -d
+	@printf "$(GREEN)✓  Deployed at http://$(shell grep FRONTEND_URL .env | cut -d= -f2 | sed 's|http://||')$(RESET)\n"
 
 up: _require-env ## Start all services in the background
 	$(COMPOSE) up -d
