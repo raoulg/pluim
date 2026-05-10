@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-surface-950 text-slate-100;
+    background-image: radial-gradient(ellipse 80% 40% at 50% -5%, rgba(109, 40, 217, 0.09) 0%, transparent 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(139, 92, 246, 0.28);
+    color: #f1f5f9;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-surface-900; }
+  ::-webkit-scrollbar-thumb { @apply bg-primary-600/70 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-primary-500; }
+}
+
+/* MDEditor dark mode override */
+.w-md-editor {
+  --color-canvas-default: theme('colors.surface.800') !important;
+  --color-canvas-subtle: theme('colors.surface.900') !important;
+  --color-fg-default: theme('colors.slate.100') !important;
+  --color-border-default: theme('colors.slate.700') !important;
+  background-color: theme('colors.surface.800') !important;
+  border-color: theme('colors.slate.700') !important;
+  border-radius: 0.5rem !important;
+}
+
+.w-md-editor-toolbar {
+  background-color: theme('colors.surface.900') !important;
+  border-bottom-color: theme('colors.slate.700') !important;
+}
+
+/* Prose styles */
+.prose pre {
+  @apply bg-surface-800 border border-slate-700;
+}
+
+.prose code:not(pre code) {
+  @apply bg-surface-800 text-emerald-400 px-1.5 py-0.5 rounded text-[0.85em];
+}
+
+.prose a {
+  @apply text-fuchsia-400 no-underline hover:underline hover:text-fuchsia-300;
+}
+
+.prose blockquote {
+  @apply border-l-fuchsia-500/50 text-slate-400;
+}
