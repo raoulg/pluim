@@ -7,12 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
 from pluim.models import Exercise, Feedback, Grade, User
-from pluim.schemas import FeedbackCreate, FeedbackOut, GradeCreate, GradeOut
+from pluim.schemas import FeedbackCreate, FeedbackOut, GradeCreate, GradeOut, UserOut
 
 router = APIRouter(prefix="/api", tags=["grades"])
 
 
-async def _load_grade_relations(grade: Grade, db: AsyncSession) -> None:
+async def _load_grade_relations(grade: Grade, db: AsyncSession) -> list[Feedback]:
     await db.refresh(grade, ["graded_by"])
     feedbacks_result = await db.execute(
         select(Feedback).where(Feedback.grade_id == grade.id).order_by(Feedback.created_at)
@@ -24,7 +24,22 @@ async def _load_grade_relations(grade: Grade, db: AsyncSession) -> None:
         authors = {u.id: u for u in authors_result.scalars().all()}
         for f in feedbacks:
             f.author = authors[f.author_id]
-    grade.feedbacks = list(feedbacks)
+    return list(feedbacks)
+
+
+def _make_grade_out(grade: Grade, feedbacks: list[Feedback]) -> GradeOut:
+    return GradeOut(
+        id=grade.id,
+        user_id=grade.user_id,
+        exercise_id=grade.exercise_id,
+        value=grade.value,
+        comment=grade.comment,
+        graded_by=UserOut.model_validate(grade.graded_by),
+        viewed_at=grade.viewed_at,
+        created_at=grade.created_at,
+        updated_at=grade.updated_at,
+        feedbacks=[FeedbackOut.model_validate(f) for f in feedbacks],
+    )
 
 
 @router.get("/exercises/{exercise_id}/grades/me", response_model=GradeOut | None)
@@ -39,8 +54,8 @@ async def get_my_grade(
     grade = result.scalar_one_or_none()
     if not grade:
         return None
-    await _load_grade_relations(grade, db)
-    return grade
+    feedbacks = await _load_grade_relations(grade, db)
+    return _make_grade_out(grade, feedbacks)
 
 
 @router.put(
@@ -86,8 +101,8 @@ async def set_grade(
 
     await db.commit()
     await db.refresh(grade)
-    await _load_grade_relations(grade, db)
-    return grade
+    feedbacks = await _load_grade_relations(grade, db)
+    return _make_grade_out(grade, feedbacks)
 
 
 @router.delete(
