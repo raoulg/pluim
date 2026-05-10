@@ -30,3 +30,4 @@ canvas-dev.db
 
 # OS
 .DS_Store
+.claude/
