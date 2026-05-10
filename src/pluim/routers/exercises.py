@@ -10,6 +10,7 @@ from pluim.schemas import (
     ExerciseCreate,
     ExerciseOut,
     ExerciseUpdate,
+    FeedbackOut,
     GradeOut,
     OverviewCell,
     OverviewRow,
@@ -174,9 +175,6 @@ async def course_overview(
     else:
         feedbacks_by_grade = {}
 
-    for g in all_grades_objs:
-        g.feedbacks = feedbacks_by_grade.get(g.id, [])
-
     rows = []
     for student in students:
         cells = {}
@@ -184,9 +182,27 @@ async def course_overview(
             key = (student.id, exercise.id)
             sub = latest_sub.get(key)
             grade = grade_map.get(key)
+            if grade:
+                grade_out = GradeOut(
+                    id=grade.id,
+                    user_id=grade.user_id,
+                    exercise_id=grade.exercise_id,
+                    value=grade.value,
+                    comment=grade.comment,
+                    graded_by=UserOut.model_validate(grade.graded_by),
+                    viewed_at=grade.viewed_at,
+                    created_at=grade.created_at,
+                    updated_at=grade.updated_at,
+                    feedbacks=[
+                        FeedbackOut.model_validate(f)
+                        for f in feedbacks_by_grade.get(grade.id, [])
+                    ],
+                )
+            else:
+                grade_out = None
             cells[exercise.id] = OverviewCell(
                 submission=SubmissionOut.model_validate(sub) if sub else None,
-                grade=GradeOut.model_validate(grade) if grade else None,
+                grade=grade_out,
             )
         rows.append(OverviewRow(student=UserOut.model_validate(student), cells=cells))
 
