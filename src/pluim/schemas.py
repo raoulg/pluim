@@ -145,6 +145,19 @@ class GradeCreate(BaseModel):
     comment: str | None = None
 
 
+class FeedbackCreate(BaseModel):
+    content: str
+
+
+class FeedbackOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    grade_id: int
+    author: UserOut
+    content: str
+    created_at: UTCDatetime
+
+
 class GradeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -156,6 +169,7 @@ class GradeOut(BaseModel):
     viewed_at: UTCDatetime | None
     created_at: UTCDatetime
     updated_at: UTCDatetime
+    feedbacks: list[FeedbackOut] = []
 
 
 # ── Overview (professor dashboard) ───────────────────────────────────────────

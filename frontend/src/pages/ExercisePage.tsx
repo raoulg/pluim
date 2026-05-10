@@ -11,12 +11,12 @@ import {
   submitUrl,
   downloadUrl,
 } from '../api/submissions'
-import { getMyGrade, markGradeViewed } from '../api/grades'
+import { getMyGrade, markGradeViewed, addStudentFeedback } from '../api/grades'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import StatusBadge from '../components/StatusBadge'
-import type { Exercise, Finalization, Grade, Submission } from '../types'
+import type { Exercise, Feedback, Finalization, Grade, Submission } from '../types'
 
 export default function ExercisePage() {
   const { courseId, exerciseId } = useParams<{ courseId: string; exerciseId: string }>()
@@ -30,6 +30,8 @@ export default function ExercisePage() {
   const [urlSubmission, setUrlSubmission] = useState<Submission | null>(null)
   const [finalization, setFinalization] = useState<Finalization | null>(null)
   const [grade, setGrade] = useState<Grade | null>(null)
+  const [remarkText, setRemarkText] = useState('')
+  const [addingRemark, setAddingRemark] = useState(false)
   const [url, setUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
@@ -123,6 +125,21 @@ export default function ExercisePage() {
     }
   }
 
+  const handleAddRemark = async () => {
+    if (!remarkText.trim() || !grade) return
+    setAddingRemark(true)
+    try {
+      const fb = await addStudentFeedback(eid, remarkText.trim())
+      setGrade({ ...grade, feedbacks: [...grade.feedbacks, fb] })
+      setRemarkText('')
+      toast.success('Remark added')
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to add remark')
+    } finally {
+      setAddingRemark(false)
+    }
+  }
+
   if (!exercise) {
     return (
       <Layout>
@@ -209,17 +226,59 @@ export default function ExercisePage() {
 
         {/* Grade result */}
         {grade && (
-          <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-5 mb-6">
-            <h2 className="text-sm font-semibold text-emerald-400 mb-1">Your grade</h2>
-            <div className="text-2xl font-bold text-emerald-300">{grade.value}</div>
-            {grade.comment && <p className="mt-2 text-sm text-slate-300">{grade.comment}</p>}
-            <p className="mt-2 text-xs text-slate-500">
-              Graded by {grade.graded_by.github_username} · {format(new Date(grade.updated_at), 'MMM d, yyyy')}
-            </p>
-          </div>
+          <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-5 mb-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-emerald-400 mb-1">Your grade</h2>
+              <div className="text-2xl font-bold text-emerald-300">{grade.value}</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Graded by {grade.graded_by.github_username} · {format(new Date(grade.updated_at), 'MMM d, yyyy')}
+              </p>
+            </div>
+
+            {/* Feedback thread */}
+            <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Feedback</h3>
+                {grade.feedbacks.length === 0 ? (
+                  <p className="text-xs text-slate-600">No feedback yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {grade.feedbacks.map((fb: Feedback) => (
+                      <div key={fb.id} className="bg-surface-800 rounded-lg px-3 py-2 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-slate-300">{fb.author.github_username}</span>
+                          <span className="text-xs text-slate-500">{format(new Date(fb.created_at), 'MMM d, yyyy HH:mm')}</span>
+                        </div>
+                        <p className="text-sm text-slate-200 whitespace-pre-wrap">{fb.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Student can add a remark */}
+                {!user?.is_admin && (
+                  <div className="pt-1 space-y-2">
+                    <textarea
+                      value={remarkText}
+                      onChange={(e) => setRemarkText(e.target.value)}
+                      placeholder="Add a remark…"
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm bg-surface-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                    />
+                    <button
+                      onClick={handleAddRemark}
+                      disabled={addingRemark || !remarkText.trim()}
+                      className="px-4 py-1.5 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {addingRemark ? 'Saving…' : 'Add remark'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
         )}
 
         {/* Finalization status */}
+
         {finalization && (
           <div className="bg-emerald-900/10 border border-emerald-700/30 rounded-xl p-4 mb-6">
             <p className="text-sm text-emerald-400">

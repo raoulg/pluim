@@ -50,6 +50,14 @@ export interface Submission {
   is_late: boolean
 }
 
+export interface Feedback {
+  id: number
+  grade_id: number
+  author: User
+  content: string
+  created_at: string
+}
+
 export interface Grade {
   id: number
   user_id: number
@@ -60,6 +68,7 @@ export interface Grade {
   viewed_at: string | null
   created_at: string
   updated_at: string
+  feedbacks: Feedback[]
 }
 
 export interface MySubmissions {

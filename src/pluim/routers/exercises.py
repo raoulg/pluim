@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
-from pluim.models import Course, Enrollment, Exercise, Grade, Submission, User
+from pluim.models import Course, Enrollment, Exercise, Feedback, Grade, Submission, User
 from pluim.schemas import (
     CourseOverview,
     ExerciseCreate,
@@ -154,6 +154,28 @@ async def course_overview(
     for g in all_grades_objs:
         g.graded_by = graders.get(g.graded_by_id)
         grade_map[(g.user_id, g.exercise_id)] = g
+
+    # load feedbacks for all grades
+    grade_ids = [g.id for g in all_grades_objs]
+    if grade_ids:
+        feedbacks_result = await db.execute(
+            select(Feedback).where(Feedback.grade_id.in_(grade_ids)).order_by(Feedback.created_at)
+        )
+        all_feedbacks = feedbacks_result.scalars().all()
+        fb_author_ids = list({f.author_id for f in all_feedbacks})
+        if fb_author_ids:
+            fb_authors_result = await db.execute(select(User).where(User.id.in_(fb_author_ids)))
+            fb_authors = {u.id: u for u in fb_authors_result.scalars().all()}
+            for f in all_feedbacks:
+                f.author = fb_authors.get(f.author_id)
+        feedbacks_by_grade: dict[int, list] = {}
+        for f in all_feedbacks:
+            feedbacks_by_grade.setdefault(f.grade_id, []).append(f)
+    else:
+        feedbacks_by_grade = {}
+
+    for g in all_grades_objs:
+        g.feedbacks = feedbacks_by_grade.get(g.id, [])
 
     rows = []
     for student in students:

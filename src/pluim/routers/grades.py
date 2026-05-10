@@ -6,10 +6,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
-from pluim.models import Exercise, Grade, User
-from pluim.schemas import GradeCreate, GradeOut
+from pluim.models import Exercise, Feedback, Grade, User
+from pluim.schemas import FeedbackCreate, FeedbackOut, GradeCreate, GradeOut
 
 router = APIRouter(prefix="/api", tags=["grades"])
+
+
+async def _load_grade_relations(grade: Grade, db: AsyncSession) -> None:
+    await db.refresh(grade, ["graded_by"])
+    feedbacks_result = await db.execute(
+        select(Feedback).where(Feedback.grade_id == grade.id).order_by(Feedback.created_at)
+    )
+    feedbacks = feedbacks_result.scalars().all()
+    author_ids = list({f.author_id for f in feedbacks})
+    if author_ids:
+        authors_result = await db.execute(select(User).where(User.id.in_(author_ids)))
+        authors = {u.id: u for u in authors_result.scalars().all()}
+        for f in feedbacks:
+            f.author = authors[f.author_id]
+    grade.feedbacks = list(feedbacks)
 
 
 @router.get("/exercises/{exercise_id}/grades/me", response_model=GradeOut | None)
@@ -24,7 +39,7 @@ async def get_my_grade(
     grade = result.scalar_one_or_none()
     if not grade:
         return None
-    await db.refresh(grade, ["graded_by"])
+    await _load_grade_relations(grade, db)
     return grade
 
 
@@ -71,7 +86,7 @@ async def set_grade(
 
     await db.commit()
     await db.refresh(grade)
-    await db.refresh(grade, ["graded_by"])
+    await _load_grade_relations(grade, db)
     return grade
 
 
@@ -120,6 +135,59 @@ async def get_unviewed_grade_count(
         select(func.count(Grade.id)).where(Grade.user_id == user.id, Grade.viewed_at.is_(None))
     )
     return {"count": result.scalar_one()}
+
+
+@router.post(
+    "/courses/{course_id}/students/{student_id}/exercises/{exercise_id}/feedback",
+    response_model=FeedbackOut,
+)
+async def add_teacher_feedback(
+    course_id: int,
+    student_id: int,
+    exercise_id: int,
+    data: FeedbackCreate,
+    author: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Grade).where(Grade.user_id == student_id, Grade.exercise_id == exercise_id)
+    )
+    grade = result.scalar_one_or_none()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Grade not found")
+
+    feedback = Feedback(grade_id=grade.id, author_id=author.id, content=data.content)
+    db.add(feedback)
+    grade.viewed_at = None  # reset so student sees notification
+    await db.commit()
+    await db.refresh(feedback)
+    feedback.author = author
+    return feedback
+
+
+@router.post(
+    "/exercises/{exercise_id}/grades/me/feedback",
+    response_model=FeedbackOut,
+)
+async def add_student_feedback(
+    exercise_id: int,
+    data: FeedbackCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Grade).where(Grade.user_id == user.id, Grade.exercise_id == exercise_id)
+    )
+    grade = result.scalar_one_or_none()
+    if not grade:
+        raise HTTPException(status_code=404, detail="No grade found for this exercise")
+
+    feedback = Feedback(grade_id=grade.id, author_id=user.id, content=data.content)
+    db.add(feedback)
+    await db.commit()
+    await db.refresh(feedback)
+    feedback.author = user
+    return feedback
 
 
 def _validate_grade_value(value: str, exercise: Exercise) -> None:

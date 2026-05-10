@@ -1,5 +1,5 @@
 import client from './client'
-import type { Grade } from '../types'
+import type { Feedback, Grade } from '../types'
 
 export const getMyGrade = (exerciseId: number) =>
   client.get<Grade | null>(`/exercises/${exerciseId}/grades/me`).then((r) => r.data)
@@ -17,3 +17,18 @@ export const markGradeViewed = (exerciseId: number) =>
 
 export const getUnviewedGradeCount = () =>
   client.get<{ count: number }>('/grades/me/unviewed-count').then((r) => r.data)
+
+export const addTeacherFeedback = (
+  courseId: number,
+  studentId: number,
+  exerciseId: number,
+  content: string,
+) =>
+  client
+    .post<Feedback>(`/courses/${courseId}/students/${studentId}/exercises/${exerciseId}/feedback`, { content })
+    .then((r) => r.data)
+
+export const addStudentFeedback = (exerciseId: number, content: string) =>
+  client
+    .post<Feedback>(`/exercises/${exerciseId}/grades/me/feedback`, { content })
+    .then((r) => r.data)

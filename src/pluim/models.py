@@ -114,6 +114,22 @@ class Grade(Base):
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="grades")
     exercise: Mapped["Exercise"] = relationship("Exercise", back_populates="grades")
     graded_by: Mapped["User"] = relationship("User", foreign_keys=[graded_by_id])
+    feedbacks: Mapped[list["Feedback"]] = relationship(
+        "Feedback", back_populates="grade", cascade="all, delete-orphan", order_by="Feedback.created_at"
+    )
+
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    grade_id: Mapped[int] = mapped_column(Integer, ForeignKey("grades.id"), nullable=False)
+    author_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    grade: Mapped["Grade"] = relationship("Grade", back_populates="feedbacks")
+    author: Mapped["User"] = relationship("User")
 
 
 class Finalization(Base):

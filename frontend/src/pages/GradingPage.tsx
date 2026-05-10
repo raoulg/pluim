@@ -3,10 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { getCourseOverview } from '../api/courses'
-import { setGrade } from '../api/grades'
+import { setGrade, addTeacherFeedback } from '../api/grades'
 import client from '../api/client'
 import Layout from '../components/Layout'
-import type { CourseOverview, Exercise, Grade, OverviewCell, OverviewRow, Submission, User } from '../types'
+import type { CourseOverview, Exercise, Feedback, Grade, OverviewCell, OverviewRow, Submission, User } from '../types'
 
 export default function GradingPage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -331,7 +331,7 @@ function ReviewModal({
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative ml-auto w-full max-w-4xl h-full bg-surface-900 flex flex-col shadow-2xl border-l border-violet-800/40">
+      <div className="relative ml-auto w-[90%] h-full bg-surface-900 flex flex-col shadow-2xl border-l border-violet-800/40">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-violet-800/40 shrink-0">
           <img src={currentRow.student.github_avatar_url} alt="" className="w-8 h-8 rounded-full ring-1 ring-primary-500/40" />
@@ -384,7 +384,7 @@ function ReviewModal({
           <div className="flex-1 overflow-y-auto p-6">
             {selectedEx && cell && (
               <ReviewArea
-                key={selectedExId}
+                key={`${selectedExId}-${cell.grade?.feedbacks?.length}`}
                 exercise={selectedEx}
                 cell={cell}
                 student={currentRow.student}
@@ -416,8 +416,9 @@ function ReviewArea({
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [value, setValue] = useState(grade?.value ?? '')
-  const [comment, setComment] = useState(grade?.comment ?? '')
   const [saving, setSaving] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [addingFeedback, setAddingFeedback] = useState(false)
   const prevBlobUrl = useRef<string | null>(null)
 
   useEffect(() => {
@@ -461,13 +462,28 @@ function ReviewArea({
     if (!value.trim()) return
     setSaving(true)
     try {
-      await setGrade(courseId, student.id, exercise.id, value.trim(), comment.trim() || undefined)
+      await setGrade(courseId, student.id, exercise.id, value.trim())
       toast.success('Grade saved')
       await onSaved()
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to save grade')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleAddFeedback = async () => {
+    if (!feedbackText.trim() || !grade) return
+    setAddingFeedback(true)
+    try {
+      await addTeacherFeedback(courseId, student.id, exercise.id, feedbackText.trim())
+      setFeedbackText('')
+      toast.success('Feedback added')
+      await onSaved()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to add feedback')
+    } finally {
+      setAddingFeedback(false)
     }
   }
 
@@ -569,13 +585,6 @@ function ReviewArea({
             className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
           />
         )}
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="Feedback / comments (optional)"
-          rows={3}
-          className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-500 resize-none"
-        />
         <button
           onClick={handleSave}
           disabled={saving || !value.trim()}
@@ -584,6 +593,50 @@ function ReviewArea({
           {saving ? 'Saving…' : 'Save grade'}
         </button>
       </div>
+
+      {/* Feedback thread */}
+      {grade && (
+        <div className="bg-surface-800 border border-violet-800/30 rounded-xl p-4 space-y-3">
+          <h4 className="text-sm font-semibold text-slate-300">Feedback</h4>
+          {grade.feedbacks.length === 0 ? (
+            <p className="text-xs text-slate-500">No feedback yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {grade.feedbacks.map((fb) => (
+                <FeedbackEntry key={fb.id} feedback={fb} />
+              ))}
+            </div>
+          )}
+          <div className="pt-2 border-t border-violet-900/30 space-y-2">
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Add a remark…"
+              rows={2}
+              className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-500 resize-none"
+            />
+            <button
+              onClick={handleAddFeedback}
+              disabled={addingFeedback || !feedbackText.trim()}
+              className="w-full py-1.5 bg-violet-700 hover:bg-violet-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
+            >
+              {addingFeedback ? 'Saving…' : 'Add remark'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackEntry({ feedback }: { feedback: Feedback }) {
+  return (
+    <div className="bg-surface-700 rounded-lg px-3 py-2 space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-slate-300">{feedback.author.github_username}</span>
+        <span className="text-xs text-slate-500">{format(new Date(feedback.created_at), 'MMM d, yyyy HH:mm')}</span>
+      </div>
+      <p className="text-sm text-slate-200 whitespace-pre-wrap">{feedback.content}</p>
     </div>
   )
 }
