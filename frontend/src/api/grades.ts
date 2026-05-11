@@ -39,10 +39,11 @@ export const saveRubricScores = (
   exerciseId: number,
   scores: RubricScores,
   publish = false,
+  bonuses: Record<string, number> = {},
 ) =>
   client
     .put<Grade>(
       `/courses/${courseId}/students/${studentId}/exercises/${exerciseId}/rubric-scores`,
-      { scores, publish },
+      { scores, publish, bonuses },
     )
     .then((r) => r.data)

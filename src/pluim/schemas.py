@@ -163,6 +163,7 @@ class RubricCriterionScore(BaseModel):
 
 class RubricScoresIn(BaseModel):
     scores: dict[str, RubricCriterionScore]
+    bonuses: dict[str, float] = {}
     publish: bool = False
 
 

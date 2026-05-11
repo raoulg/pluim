@@ -31,10 +31,17 @@ export interface RubricCriterion {
   aandachtspunten: string | null
 }
 
+export interface RubricBonus {
+  id: string
+  title: string
+  max: number
+}
+
 export interface RubricTemplate {
   criteria: RubricCriterion[]
   verslag_weight: number
   code_weight: number
+  bonuses?: RubricBonus[]
 }
 
 export interface RubricCriterionScore {

@@ -39,7 +39,7 @@ async def _load_grade_relations(grade: Grade, db: AsyncSession) -> list[Feedback
 
 
 def _calculate_rubric_grade(
-    template: dict, scores: dict[str, RubricCriterionScore]
+    template: dict, scores: dict[str, RubricCriterionScore], bonuses: dict[str, float] | None = None
 ) -> float:
     criteria = template["criteria"]
     verslag_weight = template.get("verslag_weight", 0.7)
@@ -59,7 +59,14 @@ def _calculate_rubric_grade(
     v_score = (v_sum / v_total * 10) if v_total > 0 else 0.0
     c_score = (c_sum / c_total * 10) if c_total > 0 else 0.0
 
-    return round(verslag_weight * v_score + code_weight * c_score, 1)
+    base = verslag_weight * v_score + code_weight * c_score
+
+    if bonuses:
+        bonus_caps = {b["id"]: b["max"] for b in template.get("bonuses", [])}
+        bonus_total = sum(min(v, bonus_caps.get(k, v)) for k, v in bonuses.items())
+        base += bonus_total
+
+    return round(base, 1)
 
 
 def _make_grade_out(grade: Grade, feedbacks: list[Feedback]) -> GradeOut:
@@ -197,8 +204,11 @@ async def save_rubric_scores(
         raise HTTPException(status_code=400, detail="Exercise has no rubric template")
 
     template = json.loads(exercise.rubric_template)
-    final_grade = _calculate_rubric_grade(template, data.scores)
-    scores_json = json.dumps({k: v.model_dump() for k, v in data.scores.items()})
+    final_grade = _calculate_rubric_grade(template, data.scores, data.bonuses or None)
+    scores_dict = {k: v.model_dump() for k, v in data.scores.items()}
+    if data.bonuses:
+        scores_dict["__bonuses__"] = data.bonuses
+    scores_json = json.dumps(scores_dict)
 
     result = await db.execute(
         select(Grade).where(

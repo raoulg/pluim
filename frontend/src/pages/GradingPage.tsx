@@ -63,10 +63,10 @@ function scoreToCategory(s: RubricCriterionScore): RubricCategory {
   return 'uitstekend'
 }
 
-function calcGrade(template: RubricTemplate, scores: RubricScores) {
+function calcGrade(template: RubricTemplate, scores: RubricScores, bonuses: Record<string, number> = {}) {
   const { criteria, verslag_weight, code_weight } = template
   const hasKnockout = criteria.some((c) => scores[c.id]?.is_knockout)
-  if (hasKnockout) return { verslagScore: 0, codeScore: 0, finalGrade: 1, hasKnockout: true }
+  if (hasKnockout) return { verslagScore: 0, codeScore: 0, base: 1, finalGrade: 1, bonusTotal: 0, hasKnockout: true }
 
   const verslag = criteria.filter((c) => c.section === 'verslag')
   const code = criteria.filter((c) => c.section === 'code')
@@ -76,8 +76,15 @@ function calcGrade(template: RubricTemplate, scores: RubricScores) {
   const cSum = code.reduce((a, c) => a + (scores[c.id]?.score ?? 0) * c.weight, 0)
   const verslagScore = Math.round(((vW > 0 ? vSum / vW : 0) * 10) * 10) / 10
   const codeScore = Math.round(((cW > 0 ? cSum / cW : 0) * 10) * 10) / 10
-  const finalGrade = Math.round((verslag_weight * verslagScore + code_weight * codeScore) * 10) / 10
-  return { verslagScore, codeScore, finalGrade, hasKnockout: false }
+  const base = Math.round((verslag_weight * verslagScore + code_weight * codeScore) * 10) / 10
+
+  const bonusCaps = Object.fromEntries((template.bonuses ?? []).map((b) => [b.id, b.max]))
+  const bonusTotal = Math.round(
+    Object.entries(bonuses).reduce((sum, [id, val]) => sum + Math.min(val, bonusCaps[id] ?? val), 0) * 10
+  ) / 10
+  const finalGrade = Math.round((base + bonusTotal) * 10) / 10
+
+  return { verslagScore, codeScore, base, finalGrade, bonusTotal, hasKnockout: false }
 }
 
 // ── CriterionRow ──────────────────────────────────────────────────────────────
@@ -223,6 +230,7 @@ function CriterionRow({
 function RubricGrader({
   template,
   initialScores,
+  initialBonuses,
   student,
   exercise,
   courseId,
@@ -230,27 +238,33 @@ function RubricGrader({
 }: {
   template: RubricTemplate
   initialScores: RubricScores | null
+  initialBonuses: Record<string, number>
   student: User
   exercise: Exercise
   courseId: number
   onSaved: () => Promise<void>
 }) {
   const [scores, setScores] = useState<RubricScores>(() => initialScores ?? {})
+  const [bonuses, setBonuses] = useState<Record<string, number>>(() => initialBonuses)
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null)
 
   const setScore = (id: string, s: RubricCriterionScore) =>
     setScores((prev) => ({ ...prev, [id]: s }))
 
-  const { verslagScore, codeScore, finalGrade, hasKnockout } = calcGrade(template, scores)
+  const setBonus = (id: string, val: number) =>
+    setBonuses((prev) => ({ ...prev, [id]: val }))
+
+  const { verslagScore, codeScore, base, finalGrade, bonusTotal, hasKnockout } = calcGrade(template, scores, bonuses)
   const scoredCount = template.criteria.filter((c) => c.id in scores).length
   const total = template.criteria.length
   const allScored = scoredCount === total
   const hasAnyScore = scoredCount > 0
+  const hasBonuses = (template.bonuses ?? []).length > 0
 
   const handleSave = async (publish: boolean) => {
     setSaving(publish ? 'publish' : 'draft')
     try {
-      await saveRubricScores(courseId, student.id, exercise.id, scores, publish)
+      await saveRubricScores(courseId, student.id, exercise.id, scores, publish, bonuses)
       toast.success(publish ? 'Grade published' : 'Draft saved')
       await onSaved()
     } catch (err: any) {
@@ -307,10 +321,78 @@ function RubricGrader({
         </div>
       )}
 
+      {/* Bonus section */}
+      {hasBonuses && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Bonus</h4>
+          </div>
+          <div className="space-y-2">
+            {(template.bonuses ?? []).map((b) => (
+              <div key={b.id} className="border border-violet-900/30 rounded-lg p-3 bg-surface-900/60 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-slate-200">{b.title}</span>
+                  <span className="ml-2 text-xs text-slate-500">max +{b.max}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="number"
+                    value={bonuses[b.id] ?? 0}
+                    min={0}
+                    max={b.max}
+                    step={0.05}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setBonus(b.id, isNaN(v) ? 0 : Math.min(Math.max(v, 0), b.max))
+                    }}
+                    className="w-16 px-2 py-1 text-xs bg-surface-700 border border-slate-600 rounded text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  />
+                  <span className="text-xs text-slate-500">/ {b.max}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Grade summary */}
       <div className={`rounded-xl p-4 border ${hasKnockout ? 'border-red-600/60 bg-red-900/20' : 'border-violet-800/30 bg-surface-800'}`}>
         {hasKnockout ? (
           <div className="text-red-400 font-semibold text-sm">Knock out — eindcijfer: 1</div>
+        ) : hasBonuses ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-xs text-slate-500 mb-0.5">Verslag</div>
+                <div className="text-lg font-bold text-slate-200">{scoredCount > 0 ? verslagScore.toFixed(1) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 mb-0.5">Code</div>
+                <div className="text-lg font-bold text-slate-200">
+                  {codeCriteria.length > 0 && codeCriteria.every((c) => c.id in scores)
+                    ? codeScore.toFixed(1)
+                    : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 mb-0.5">Basis</div>
+                <div className="text-lg font-bold text-slate-200">{allScored ? base.toFixed(1) : '—'}</div>
+              </div>
+            </div>
+            {allScored && (
+              <div className="flex items-center justify-between pt-2 border-t border-violet-900/30">
+                <span className="text-xs text-slate-500">
+                  {base.toFixed(1)} + {bonusTotal.toFixed(2)} bonus
+                </span>
+                <div className={`text-2xl font-bold text-primary-400`}>
+                  {finalGrade.toFixed(1)}
+                </div>
+              </div>
+            )}
+            {!allScored && (
+              <div className="text-center text-slate-600 text-2xl font-bold">—</div>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
@@ -774,6 +856,11 @@ function ReviewArea({
 }) {
   const { file, url, grade } = cell
   const rubricTemplate = parseTemplate(exercise.rubric_template ?? null)
+  const rawScores = grade?.rubric_scores ?? null
+  const initialBonuses = (rawScores?.['__bonuses__'] as Record<string, number> | undefined) ?? {}
+  const initialScores = rawScores
+    ? (Object.fromEntries(Object.entries(rawScores).filter(([k]) => k !== '__bonuses__')) as RubricScores)
+    : null
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [value, setValue] = useState(grade?.value ?? '')
@@ -945,7 +1032,8 @@ function ReviewArea({
           <RubricGrader
             key={`rubric-${grade?.id ?? 'new'}`}
             template={rubricTemplate}
-            initialScores={grade?.rubric_scores ?? null}
+            initialScores={initialScores}
+            initialBonuses={initialBonuses}
             student={student}
             exercise={exercise}
             courseId={courseId}
