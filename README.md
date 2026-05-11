@@ -1,43 +1,92 @@
 # Canvas
 
-Course assignment submission and grading platform. Students authenticate via GitHub, submit files/URLs, and see their results. Professors manage exercises, view a grid overview of all students, and assign grades.
+![status](https://img.shields.io/badge/status-alpha-orange)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Built with Claude](https://img.shields.io/badge/built%20with-Claude-%23CC785C?logo=anthropic&logoColor=white)](https://claude.ai)
 
+Course assignment submission and grading platform. Students authenticate via GitHub, submit files/URLs, and see their results. Teachers manage exercises, view a grid overview of all students, and assign grades.
+
+## Features
+
+- GitHub OAuth login
+- Multiple courses with enrollment codes
+- Exercises with start/due dates, allowed file extensions, late submission toggle
+- Markdown descriptions and rubrics (with bold, links, lists, etc.)
+- File uploads (PDF, etc.) and URL submissions, up to 50 MB
+- Resubmission allowed at any time
+- Grade scales: numeric (e.g. 0–10, 0–2) or Pass/Fail, with timestamped rich-text feedback
+- Professor grading grid: one screen, all students × all exercises
+- Quick review panel: per-student side drawer with PDF embed, grade form, and rich-text feedback history across all exercises
+- Bulk download: ZIP of all students' latest file submissions per exercise
+- Student grade notifications: navbar badge clears when the student views their grade
+- Admin panel to manage users and toggle admin rights
+- Dark mode UI
+
+---
 ## Quick start
+### 1. Provision a VM
 
-### 1. Create a GitHub OAuth App
+Recommended: Ubuntu 22.04, 8 GB RAM (e.g. SURF Research Cloud or any VPS).
+Note the public IP — you'll need it in the steps below.
 
-Go to https://github.com/settings/developers → **New OAuth App**:
+Install Docker and uv on the VM:
+
+```bash
+# Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER   # then log out and back in
+
+# uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Clone the repo and run the setup helper:
+
+```bash
+git clone <repo-url>
+cd pluim
+make setup
+```
+
+`make setup` copies `.env.example` → `.env` and prints the remaining steps.
+
+### 2. Create a GitHub OAuth App
+
+Go to **https://github.com/settings/developers** → **New OAuth App** and fill in:
 - **Homepage URL**: `http://YOUR_VM_IP`
 - **Authorization callback URL**: `http://YOUR_VM_IP/api/auth/callback`
 
-### 2. Configure environment
+After saving, copy the **Client ID** and generate a **Client Secret**.
 
-```bash
-cp .env.example .env
-```
+### 3. Configure `.env`
 
-Edit `.env`:
+Edit the `.env` file that `make setup` created:
+
 ```
-GITHUB_CLIENT_ID=...        # from the OAuth App
-GITHUB_CLIENT_SECRET=...    # from the OAuth App
-SECRET_KEY=...              # run: make secret
+GITHUB_CLIENT_ID=...              # from the OAuth App
+GITHUB_CLIENT_SECRET=...          # from the OAuth App
 FRONTEND_URL=http://YOUR_VM_IP
 ADMIN_GITHUB_USERNAMES=your_github_username
+SECRET_KEY=...                    # run: make secret, then paste the output
 ```
 
-### 3. Build and run
+Run `make secret` to generate a secure `SECRET_KEY`.
+
+### 4. Build and run
 
 ```bash
-docker compose up --build -d
+make build && make up
 ```
 
 Open `http://YOUR_VM_IP` in your browser. Log in with GitHub — your account gets admin rights automatically on first login (since it's in `ADMIN_GITHUB_USERNAMES`).
+
+For subsequent deploys after a `git pull`, use `make deploy`. From your local machine you can run `make push-deploy` to push, pull on the server, and redeploy in one step (requires `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_PATH` in `.env`).
 
 ---
 
 ## Usage
 
-### As a professor (admin)
+### As an admin
 
 1. Go to **Admin** → create a course → share the enrollment code with students
 2. From the course page → **Manage** to add exercises with due dates, allowed file types, and grading rubrics
@@ -53,23 +102,6 @@ Open `http://YOUR_VM_IP` in your browser. Log in with GitHub — your account ge
 4. Your grades appear on the exercise page once the professor grades them
 5. A notification badge in the navbar shows how many new or updated grades you haven't seen yet — it clears automatically when you visit the exercise page
 
----
-
-## Features
-
-- GitHub OAuth login
-- Multiple courses with enrollment codes
-- Exercises with start/due dates, allowed file extensions, late submission toggle
-- Markdown descriptions and rubrics (with bold, links, lists, etc.)
-- File uploads (PDF, etc.) and URL submissions, up to 50 MB
-- Resubmission allowed at any time
-- Grade scales: numeric (e.g. 0–10, 0–2) or Pass/Fail, with optional comments
-- Professor grading grid: one screen, all students × all exercises
-- Quick review panel: per-student side drawer with PDF embed, grade form, and feedback across all exercises
-- Bulk download: ZIP of all students' latest file submissions per exercise
-- Student grade notifications: navbar badge clears when the student views their grade
-- Admin panel to manage users and toggle admin rights
-- Dark mode UI
 
 ## Local development (no VM, no GitHub OAuth)
 
@@ -95,8 +127,11 @@ All Makefile targets: `make help`
 
 ## Data persistence
 
-All data lives in a Docker volume (`canvas_data`):
-- SQLite database at `/data/db/canvas.db`
+All data lives in a Docker volume (`canvas_pluim_data`):
+- SQLite database at `/data/db/pluim.db`
 - Uploaded files at `/data/uploads/`
 
-To back up: `docker run --rm -v canvas_canvas_data:/data -v $(pwd):/backup alpine tar czf /backup/canvas-backup.tar.gz /data`
+```bash
+make backup                        # saves a timestamped .tar.gz to ./backups/
+make restore FILE=backups/pluim-YYYYMMDD-HHMMSS.tar.gz
+```
