@@ -203,6 +203,7 @@ async def course_overview(
                     comment=grade.comment,
                     graded_by=UserOut.model_validate(grade.graded_by),
                     viewed_at=grade.viewed_at,
+                    is_published=grade.is_published,
                     created_at=grade.created_at,
                     updated_at=grade.updated_at,
                     feedbacks=[
