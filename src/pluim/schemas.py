@@ -163,6 +163,7 @@ class RubricCriterionScore(BaseModel):
 
 class RubricScoresIn(BaseModel):
     scores: dict[str, RubricCriterionScore]
+    publish: bool = False
 
 
 class FeedbackCreate(BaseModel):
@@ -187,6 +188,7 @@ class GradeOut(BaseModel):
     comment: str | None
     graded_by: UserOut
     viewed_at: UTCDatetime | None
+    is_published: bool
     created_at: UTCDatetime
     updated_at: UTCDatetime
     feedbacks: list[FeedbackOut] = []

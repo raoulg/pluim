@@ -93,6 +93,7 @@ export interface Grade {
   comment: string | null
   graded_by: User
   viewed_at: string | null
+  is_published: boolean
   created_at: string
   updated_at: string
   feedbacks: Feedback[]

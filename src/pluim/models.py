@@ -183,6 +183,7 @@ class Grade(Base):
         Integer, ForeignKey("users.id"), nullable=False
     )
     viewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     rubric_scores: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

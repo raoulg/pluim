@@ -71,6 +71,7 @@ def _make_grade_out(grade: Grade, feedbacks: list[Feedback]) -> GradeOut:
         comment=grade.comment,
         graded_by=UserOut.model_validate(grade.graded_by),
         viewed_at=grade.viewed_at,
+        is_published=grade.is_published,
         created_at=grade.created_at,
         updated_at=grade.updated_at,
         feedbacks=[FeedbackOut.model_validate(f) for f in feedbacks],
@@ -85,7 +86,11 @@ async def get_my_grade(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Grade).where(Grade.user_id == user.id, Grade.exercise_id == exercise_id)
+        select(Grade).where(
+            Grade.user_id == user.id,
+            Grade.exercise_id == exercise_id,
+            Grade.is_published.is_(True),
+        )
     )
     grade = result.scalar_one_or_none()
     if not grade:
@@ -203,10 +208,15 @@ async def save_rubric_scores(
     grade = result.scalar_one_or_none()
 
     if grade:
+        was_published = grade.is_published
         grade.value = str(final_grade)
         grade.rubric_scores = scores_json
         grade.graded_by_id = grader.id
-        grade.viewed_at = None
+        grade.is_published = data.publish
+        if data.publish:
+            grade.viewed_at = None  # notify student on publish / re-publish
+        elif was_published:
+            grade.viewed_at = None  # unpublishing resets view so re-publish re-notifies
     else:
         grade = Grade(
             user_id=student_id,
@@ -214,6 +224,7 @@ async def save_rubric_scores(
             value=str(final_grade),
             rubric_scores=scores_json,
             graded_by_id=grader.id,
+            is_published=data.publish,
         )
         db.add(grade)
 
@@ -248,7 +259,9 @@ async def get_unviewed_grade_count(
 ):
     result = await db.execute(
         select(func.count(Grade.id)).where(
-            Grade.user_id == user.id, Grade.viewed_at.is_(None)
+            Grade.user_id == user.id,
+            Grade.viewed_at.is_(None),
+            Grade.is_published.is_(True),
         )
     )
     return {"count": result.scalar_one()}

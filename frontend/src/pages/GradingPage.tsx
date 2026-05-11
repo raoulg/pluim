@@ -236,7 +236,7 @@ function RubricGrader({
   onSaved: () => Promise<void>
 }) {
   const [scores, setScores] = useState<RubricScores>(() => initialScores ?? {})
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<'draft' | 'publish' | null>(null)
 
   const setScore = (id: string, s: RubricCriterionScore) =>
     setScores((prev) => ({ ...prev, [id]: s }))
@@ -245,17 +245,18 @@ function RubricGrader({
   const scoredCount = template.criteria.filter((c) => c.id in scores).length
   const total = template.criteria.length
   const allScored = scoredCount === total
+  const hasAnyScore = scoredCount > 0
 
-  const handleSave = async () => {
-    setSaving(true)
+  const handleSave = async (publish: boolean) => {
+    setSaving(publish ? 'publish' : 'draft')
     try {
-      await saveRubricScores(courseId, student.id, exercise.id, scores)
-      toast.success('Rubric saved')
+      await saveRubricScores(courseId, student.id, exercise.id, scores, publish)
+      toast.success(publish ? 'Grade published' : 'Draft saved')
       await onSaved()
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to save rubric')
     } finally {
-      setSaving(false)
+      setSaving(null)
     }
   }
 
@@ -334,17 +335,27 @@ function RubricGrader({
         )}
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={saving || !allScored}
-        className="w-full py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
-      >
-        {saving
-          ? 'Saving…'
-          : allScored
-          ? 'Save rubric & grade'
-          : `Score ${scoredCount}/${total} criteria`}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => handleSave(false)}
+          disabled={saving !== null || !hasAnyScore}
+          className="flex-1 py-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-slate-200 font-medium rounded-lg transition-colors text-sm border border-slate-600"
+        >
+          {saving === 'draft' ? 'Saving…' : 'Save draft'}
+        </button>
+        <button
+          onClick={() => handleSave(true)}
+          disabled={saving !== null || !allScored}
+          className="flex-1 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
+          title={!allScored ? `Score all ${total} criteria first` : undefined}
+        >
+          {saving === 'publish'
+            ? 'Publishing…'
+            : allScored
+            ? 'Publish'
+            : `Publish (${scoredCount}/${total})`}
+        </button>
+      </div>
     </div>
   )
 }
@@ -569,10 +580,13 @@ function CellView({
         {grade ? (
           <button
             onClick={onEdit}
-            className="text-xs font-semibold text-primary-400 hover:text-primary-300 transition-colors"
+            className="text-xs font-semibold text-primary-400 hover:text-primary-300 transition-colors inline-flex items-center gap-1"
             title={grade.comment ?? undefined}
           >
-            {grade.value} ✎
+            {grade.is_published ? grade.value : (
+              <span className="text-amber-400">draft</span>
+            )}
+            {' '}✎
           </button>
         ) : (
           <button
@@ -911,11 +925,23 @@ function ReviewArea({
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-300">Rubric</h4>
             {grade && (
-              <span className="text-xs text-primary-400 font-semibold">
-                Huidig cijfer: {grade.value}
-              </span>
+              <div className="flex items-center gap-2">
+                {!grade.is_published && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-700/40">
+                    draft
+                  </span>
+                )}
+                <span className="text-xs text-primary-400 font-semibold">
+                  {grade.is_published ? grade.value : '—'}
+                </span>
+              </div>
             )}
           </div>
+          {grade && !grade.is_published && (
+            <div className="text-xs text-amber-400 bg-amber-950/40 border border-amber-800/30 rounded-lg px-3 py-2">
+              Draft — not yet visible to the student. Click <strong>Publish</strong> when ready.
+            </div>
+          )}
           <RubricGrader
             key={`rubric-${grade?.id ?? 'new'}`}
             template={rubricTemplate}

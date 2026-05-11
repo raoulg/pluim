@@ -38,10 +38,11 @@ export const saveRubricScores = (
   studentId: number,
   exerciseId: number,
   scores: RubricScores,
+  publish = false,
 ) =>
   client
     .put<Grade>(
       `/courses/${courseId}/students/${studentId}/exercises/${exerciseId}/rubric-scores`,
-      { scores },
+      { scores, publish },
     )
     .then((r) => r.data)

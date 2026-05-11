@@ -19,7 +19,7 @@ import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import StatusBadge from '../components/StatusBadge'
-import type { Exercise, Feedback, Finalization, Grade, Submission } from '../types'
+import type { Exercise, Feedback, Finalization, Grade, RubricTemplate, Submission } from '../types'
 
 export default function ExercisePage() {
   const { courseId, exerciseId } = useParams<{ courseId: string; exerciseId: string }>()
@@ -228,18 +228,59 @@ export default function ExercisePage() {
         </div>
 
         {/* Grade result */}
-        {grade && (
-          <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-5 mb-6 space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-emerald-400 mb-1">Your grade</h2>
-              <div className="text-2xl font-bold text-emerald-300">{grade.value}</div>
-              <p className="mt-1 text-xs text-slate-500">
-                Graded by {grade.graded_by.github_username} · {format(new Date(grade.updated_at), 'MMM d, yyyy')}
+        {grade && (() => {
+          const template: RubricTemplate | null = exercise.rubric_template
+            ? JSON.parse(exercise.rubric_template)
+            : null
+          const koItems = template && grade.rubric_scores
+            ? template.criteria.filter(
+                (c) => grade.rubric_scores![c.id]?.is_knockout
+              )
+            : []
+          const isKnockout = koItems.length > 0
+
+          return isKnockout ? (
+            <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-5 mb-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🚫</span>
+                <h2 className="text-sm font-semibold text-red-400">Knock-out — grade withheld</h2>
+              </div>
+              <p className="text-xs text-slate-400">
+                The following criteria must be resolved before a grade is awarded:
+              </p>
+              <ul className="space-y-3">
+                {koItems.map((c) => (
+                  <li key={c.id} className="bg-surface-800 rounded-lg px-3 py-2 space-y-1">
+                    <p className="text-sm font-medium text-red-300">{c.title}</p>
+                    {c.knockout && (
+                      <p className="text-xs text-slate-400">{c.knockout}</p>
+                    )}
+                    {grade.rubric_scores![c.id]?.remark && (
+                      <div className="mt-1 pt-1 border-t border-slate-700/60">
+                        <p className="text-xs text-slate-500 italic">
+                          Remark: {grade.rubric_scores![c.id].remark}
+                        </p>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500">
+                Reviewed by {grade.graded_by.github_username} · {format(new Date(grade.updated_at), 'MMM d, yyyy')}
               </p>
             </div>
+          ) : (
+            <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-5 mb-6 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-emerald-400 mb-1">Your grade</h2>
+                <div className="text-2xl font-bold text-emerald-300">{grade.value}</div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Graded by {grade.graded_by.github_username} · {format(new Date(grade.updated_at), 'MMM d, yyyy')}
+                </p>
+              </div>
 
-            {/* Feedback thread */}
-            <div className="space-y-2">
+              {/* Feedback thread */}
+              <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Feedback</h3>
                 {grade.feedbacks.length === 0 ? (
                   <p className="text-xs text-slate-600">No feedback yet.</p>
@@ -279,7 +320,8 @@ export default function ExercisePage() {
                 )}
               </div>
             </div>
-        )}
+          )
+        })()}
 
         {/* Finalization status */}
 

@@ -27,6 +27,7 @@ async def migrate_db() -> None:
         "ALTER TABLE grades ADD COLUMN viewed_at DATETIME",
         "ALTER TABLE exercises ADD COLUMN rubric_template TEXT",
         "ALTER TABLE grades ADD COLUMN rubric_scores TEXT",
+        "ALTER TABLE grades ADD COLUMN is_published BOOLEAN NOT NULL DEFAULT 1",
     ]
     async with engine.begin() as conn:
         for sql in _migrations:
