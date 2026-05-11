@@ -1,12 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
 from pluim.models import Course, Enrollment, User
-from pluim.schemas import CourseCreate, CourseOut, CourseUpdate, EnrollByUsernameRequest, EnrollRequest, UserOut
+from pluim.schemas import (
+    CourseCreate,
+    CourseOut,
+    CourseUpdate,
+    EnrollByUsernameRequest,
+    EnrollRequest,
+    UserOut,
+)
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 
@@ -97,7 +103,9 @@ async def enroll(
     if course.enrollment_code != data.enrollment_code:
         raise HTTPException(status_code=400, detail="Invalid enrollment code")
     existing = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course_id)
+        select(Enrollment).where(
+            Enrollment.user_id == user.id, Enrollment.course_id == course_id
+        )
     )
     if not existing.scalar_one_or_none():
         db.add(Enrollment(user_id=user.id, course_id=course_id))
@@ -112,13 +120,17 @@ async def join_by_code(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Course).where(Course.enrollment_code == data.enrollment_code, Course.is_archived == False)
+        select(Course).where(
+            Course.enrollment_code == data.enrollment_code, Course.is_archived.is_(False)
+        )
     )
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Invalid enrollment code")
     existing = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course.id)
+        select(Enrollment).where(
+            Enrollment.user_id == user.id, Enrollment.course_id == course.id
+        )
     )
     if not existing.scalar_one_or_none():
         db.add(Enrollment(user_id=user.id, course_id=course.id))
@@ -142,7 +154,9 @@ async def list_students(
     return result.scalars().all()
 
 
-@router.post("/{course_id}/students", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{course_id}/students", response_model=UserOut, status_code=status.HTTP_201_CREATED
+)
 async def add_student(
     course_id: int,
     data: EnrollByUsernameRequest,
@@ -153,12 +167,18 @@ async def add_student(
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    result = await db.execute(select(User).where(User.github_username == data.github_username))
+    result = await db.execute(
+        select(User).where(User.github_username == data.github_username)
+    )
     student = result.scalar_one_or_none()
     if not student:
-        raise HTTPException(status_code=404, detail="User not found — they must log in first")
+        raise HTTPException(
+            status_code=404, detail="User not found — they must log in first"
+        )
     existing = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == student.id, Enrollment.course_id == course_id)
+        select(Enrollment).where(
+            Enrollment.user_id == student.id, Enrollment.course_id == course_id
+        )
     )
     if not existing.scalar_one_or_none():
         db.add(Enrollment(user_id=student.id, course_id=course_id))
@@ -166,7 +186,9 @@ async def add_student(
     return student
 
 
-@router.delete("/{course_id}/students/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{course_id}/students/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_student(
     course_id: int,
     user_id: int,
@@ -174,7 +196,9 @@ async def remove_student(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == user_id, Enrollment.course_id == course_id)
+        select(Enrollment).where(
+            Enrollment.user_id == user_id, Enrollment.course_id == course_id
+        )
     )
     enrollment = result.scalar_one_or_none()
     if not enrollment:
@@ -190,6 +214,7 @@ async def regenerate_code(
     db: AsyncSession = Depends(get_db),
 ):
     import secrets
+
     result = await db.execute(select(Course).where(Course.id == course_id))
     course = result.scalar_one_or_none()
     if not course:
@@ -200,7 +225,9 @@ async def regenerate_code(
     return course
 
 
-async def _get_accessible_course(course_id: int, user: User, db: AsyncSession) -> Course:
+async def _get_accessible_course(
+    course_id: int, user: User, db: AsyncSession
+) -> Course:
     result = await db.execute(select(Course).where(Course.id == course_id))
     course = result.scalar_one_or_none()
     if not course:
@@ -208,7 +235,9 @@ async def _get_accessible_course(course_id: int, user: User, db: AsyncSession) -
     if user.is_admin:
         return course
     enrollment = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course_id)
+        select(Enrollment).where(
+            Enrollment.user_id == user.id, Enrollment.course_id == course_id
+        )
     )
     if not enrollment.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Not enrolled in this course")

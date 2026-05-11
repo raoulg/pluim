@@ -1,11 +1,10 @@
 import io
-import os
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,15 +42,28 @@ async def get_my_submissions(
 ):
     file_result = await db.execute(
         select(Submission)
-        .where(Submission.user_id == user.id, Submission.exercise_id == exercise_id, Submission.submission_type == "file")
+        .where(
+            Submission.user_id == user.id,
+            Submission.exercise_id == exercise_id,
+            Submission.submission_type == "file",
+        )
         .order_by(Submission.submitted_at.desc())
     )
     url_result = await db.execute(
         select(Submission)
-        .where(Submission.user_id == user.id, Submission.exercise_id == exercise_id, Submission.submission_type == "url")
+        .where(
+            Submission.user_id == user.id,
+            Submission.exercise_id == exercise_id,
+            Submission.submission_type == "url",
+        )
         .order_by(Submission.submitted_at.desc())
     )
-    return MySubmissionsOut(file=file_result.scalars().first(), url=url_result.scalars().first())
+    file_sub = file_result.scalars().first()
+    url_sub = url_result.scalars().first()
+    return MySubmissionsOut(
+        file=SubmissionOut.model_validate(file_sub) if file_sub else None,
+        url=SubmissionOut.model_validate(url_sub) if url_sub else None,
+    )
 
 
 @router.get("/{exercise_id}/my-finalization", response_model=FinalizationOut | None)
@@ -61,7 +73,9 @@ async def get_my_finalization(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Finalization).where(Finalization.user_id == user.id, Finalization.exercise_id == exercise_id)
+        select(Finalization).where(
+            Finalization.user_id == user.id, Finalization.exercise_id == exercise_id
+        )
     )
     return result.scalar_one_or_none()
 
@@ -83,7 +97,9 @@ async def finalize_submission(
             )
         )
         if not file_result.scalars().first():
-            raise HTTPException(status_code=400, detail="File upload is required before handing in")
+            raise HTTPException(
+                status_code=400, detail="File upload is required before handing in"
+            )
 
     if exercise.url_requirement == "mandatory":
         url_result = await db.execute(
@@ -94,10 +110,14 @@ async def finalize_submission(
             )
         )
         if not url_result.scalars().first():
-            raise HTTPException(status_code=400, detail="URL submission is required before handing in")
+            raise HTTPException(
+                status_code=400, detail="URL submission is required before handing in"
+            )
 
     result = await db.execute(
-        select(Finalization).where(Finalization.user_id == user.id, Finalization.exercise_id == exercise_id)
+        select(Finalization).where(
+            Finalization.user_id == user.id, Finalization.exercise_id == exercise_id
+        )
     )
     fin = result.scalar_one_or_none()
     if fin:
@@ -118,7 +138,9 @@ async def download_all_submissions(
 ):
     subq = (
         select(func.max(Submission.id))
-        .where(Submission.exercise_id == exercise_id, Submission.submission_type == "file")
+        .where(
+            Submission.exercise_id == exercise_id, Submission.submission_type == "file"
+        )
         .group_by(Submission.user_id)
         .scalar_subquery()
     )
@@ -131,7 +153,9 @@ async def download_all_submissions(
     rows = result.all()
 
     if not rows:
-        raise HTTPException(status_code=404, detail="No file submissions found for this exercise")
+        raise HTTPException(
+            status_code=404, detail="No file submissions found for this exercise"
+        )
 
     zip_buffer = io.BytesIO()
     added = 0
@@ -153,7 +177,9 @@ async def download_all_submissions(
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=exercise_{exercise_id}_submissions.zip"},
+        headers={
+            "Content-Disposition": f"attachment; filename=exercise_{exercise_id}_submissions.zip"
+        },
     )
 
 
@@ -207,13 +233,21 @@ async def submit_file(
 
     filename = file.filename or "upload"
     ext = Path(filename).suffix.lstrip(".").lower()
-    allowed = [e.strip().lower() for e in exercise.allowed_extensions.split(",") if e.strip()]
+    allowed = [
+        e.strip().lower() for e in exercise.allowed_extensions.split(",") if e.strip()
+    ]
     if allowed and ext not in allowed:
-        raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed. Allowed: {', '.join(allowed)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type .{ext} not allowed. Allowed: {', '.join(allowed)}",
+        )
 
     content = await file.read()
     if len(content) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_upload_size_mb}MB limit")
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds {settings.max_upload_size_mb}MB limit",
+        )
 
     dest_dir = Path(settings.upload_dir) / str(exercise_id) / str(user.id)
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -246,7 +280,9 @@ async def download_submission(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Submission).where(Submission.id == submission_id, Submission.exercise_id == exercise_id)
+        select(Submission).where(
+            Submission.id == submission_id, Submission.exercise_id == exercise_id
+        )
     )
     sub = result.scalar_one_or_none()
     if not sub:
@@ -263,14 +299,19 @@ async def download_submission(
     return FileResponse(str(full_path), filename=sub.original_filename or "download")
 
 
-async def _get_accessible_exercise(exercise_id: int, user: User, db: AsyncSession) -> Exercise:
+async def _get_accessible_exercise(
+    exercise_id: int, user: User, db: AsyncSession
+) -> Exercise:
     result = await db.execute(select(Exercise).where(Exercise.id == exercise_id))
     exercise = result.scalar_one_or_none()
     if not exercise:
         raise HTTPException(status_code=404, detail="Exercise not found")
     if not user.is_admin:
         enrollment = await db.execute(
-            select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == exercise.course_id)
+            select(Enrollment).where(
+                Enrollment.user_id == user.id,
+                Enrollment.course_id == exercise.course_id,
+            )
         )
         if not enrollment.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="Not enrolled in this course")
@@ -284,7 +325,10 @@ def _check_submission_allowed(exercise: Exercise) -> None:
     if exercise.due_date and not exercise.allow_late_upload:
         due = exercise.due_date.replace(tzinfo=timezone.utc)
         if now > due:
-            raise HTTPException(status_code=400, detail="Due date has passed and late submissions are not allowed")
+            raise HTTPException(
+                status_code=400,
+                detail="Due date has passed and late submissions are not allowed",
+            )
 
 
 def _is_late(exercise: Exercise) -> bool:

@@ -6,11 +6,12 @@ from pydantic.functional_serializers import PlainSerializer
 
 UTCDatetime = Annotated[
     datetime,
-    PlainSerializer(lambda v: v.isoformat() + 'Z', return_type=str, when_used='json'),
+    PlainSerializer(lambda v: v.isoformat() + "Z", return_type=str, when_used="json"),
 ]
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
+
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -28,6 +29,7 @@ class UserUpdate(BaseModel):
 
 
 # ── Course ────────────────────────────────────────────────────────────────────
+
 
 class CourseCreate(BaseModel):
     name: str
@@ -51,6 +53,7 @@ class CourseOut(BaseModel):
 
 
 # ── Exercise ──────────────────────────────────────────────────────────────────
+
 
 class ExerciseCreate(BaseModel):
     title: str
@@ -107,6 +110,7 @@ class ExerciseOut(BaseModel):
 
 # ── Submission ────────────────────────────────────────────────────────────────
 
+
 class SubmissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -130,6 +134,7 @@ class MySubmissionsOut(BaseModel):
 
 # ── Finalization ──────────────────────────────────────────────────────────────
 
+
 class FinalizationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -139,6 +144,7 @@ class FinalizationOut(BaseModel):
 
 
 # ── Grade ─────────────────────────────────────────────────────────────────────
+
 
 class GradeCreate(BaseModel):
     value: str
@@ -174,6 +180,7 @@ class GradeOut(BaseModel):
 
 # ── Overview (professor dashboard) ───────────────────────────────────────────
 
+
 class OverviewCell(BaseModel):
     submission: SubmissionOut | None
     grade: GradeOut | None
@@ -192,6 +199,7 @@ class CourseOverview(BaseModel):
 
 # ── Enrollment ────────────────────────────────────────────────────────────────
 
+
 class EnrollRequest(BaseModel):
     enrollment_code: str
 
@@ -201,6 +209,7 @@ class EnrollByUsernameRequest(BaseModel):
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
+
 
 class TokenOut(BaseModel):
     access_token: str

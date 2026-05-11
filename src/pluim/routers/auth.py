@@ -41,7 +41,9 @@ async def login(response: Response):
     }
     url = GITHUB_AUTHORIZE_URL + "?" + "&".join(f"{k}={v}" for k, v in params.items())
     redirect = RedirectResponse(url=url)
-    redirect.set_cookie("oauth_state", state, httponly=True, max_age=600, samesite="lax")
+    redirect.set_cookie(
+        "oauth_state", state, httponly=True, max_age=600, samesite="lax"
+    )
     return redirect
 
 
@@ -72,7 +74,10 @@ async def callback(
 
         user_resp = await client.get(
             GITHUB_USER_URL,
-            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            },
         )
         gh_user = user_resp.json()
 
@@ -106,7 +111,9 @@ async def callback(
     await db.refresh(user)
 
     token = create_jwt(user.id)
-    redirect = RedirectResponse(url=f"{settings.frontend_url}/auth/callback?token={token}")
+    redirect = RedirectResponse(
+        url=f"{settings.frontend_url}/auth/callback?token={token}"
+    )
     redirect.delete_cookie("oauth_state")
     return redirect
 
@@ -129,7 +136,7 @@ async def dev_login(db: AsyncSession = Depends(get_db)):
         user = User(
             github_id=-1,
             github_username=username,
-            github_avatar_url=f"https://avatars.githubusercontent.com/u/0?v=4",
+            github_avatar_url="https://avatars.githubusercontent.com/u/0?v=4",
             github_email=None,
             is_admin=True,
         )
@@ -154,7 +161,7 @@ async def dev_login_user(db: AsyncSession = Depends(get_db)):
         user = User(
             github_id=-2,
             github_username=username,
-            github_avatar_url=f"https://avatars.githubusercontent.com/u/0?v=4",
+            github_avatar_url="https://avatars.githubusercontent.com/u/0?v=4",
             github_email=None,
             is_admin=False,
         )

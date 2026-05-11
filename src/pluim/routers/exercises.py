@@ -30,12 +30,18 @@ async def list_exercises(
 ):
     await _assert_course_access(course_id, user, db)
     result = await db.execute(
-        select(Exercise).where(Exercise.course_id == course_id).order_by(Exercise.order_index, Exercise.created_at)
+        select(Exercise)
+        .where(Exercise.course_id == course_id)
+        .order_by(Exercise.order_index, Exercise.created_at)
     )
     return result.scalars().all()
 
 
-@router.post("/{course_id}/exercises", response_model=ExerciseOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{course_id}/exercises",
+    response_model=ExerciseOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_exercise(
     course_id: int,
     data: ExerciseCreate,
@@ -80,7 +86,9 @@ async def update_exercise(
     return exercise
 
 
-@router.delete("/{course_id}/exercises/{exercise_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{course_id}/exercises/{exercise_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_exercise(
     course_id: int,
     exercise_id: int,
@@ -153,22 +161,26 @@ async def course_overview(
 
     grade_map: dict[tuple, Grade] = {}
     for g in all_grades_objs:
-        g.graded_by = graders.get(g.graded_by_id)
+        g.graded_by = graders.get(g.graded_by_id)  # ty: ignore[invalid-assignment]
         grade_map[(g.user_id, g.exercise_id)] = g
 
     # load feedbacks for all grades
     grade_ids = [g.id for g in all_grades_objs]
     if grade_ids:
         feedbacks_result = await db.execute(
-            select(Feedback).where(Feedback.grade_id.in_(grade_ids)).order_by(Feedback.created_at)
+            select(Feedback)
+            .where(Feedback.grade_id.in_(grade_ids))
+            .order_by(Feedback.created_at)
         )
         all_feedbacks = feedbacks_result.scalars().all()
         fb_author_ids = list({f.author_id for f in all_feedbacks})
         if fb_author_ids:
-            fb_authors_result = await db.execute(select(User).where(User.id.in_(fb_author_ids)))
+            fb_authors_result = await db.execute(
+                select(User).where(User.id.in_(fb_author_ids))
+            )
             fb_authors = {u.id: u for u in fb_authors_result.scalars().all()}
             for f in all_feedbacks:
-                f.author = fb_authors.get(f.author_id)
+                f.author = fb_authors.get(f.author_id)  # ty: ignore[invalid-assignment]
         feedbacks_by_grade: dict[int, list] = {}
         for f in all_feedbacks:
             feedbacks_by_grade.setdefault(f.grade_id, []).append(f)
@@ -217,7 +229,9 @@ async def _assert_course_access(course_id: int, user: User, db: AsyncSession) ->
     if user.is_admin:
         return
     result = await db.execute(
-        select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course_id)
+        select(Enrollment).where(
+            Enrollment.user_id == user.id, Enrollment.course_id == course_id
+        )
     )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Not enrolled in this course")
@@ -225,7 +239,9 @@ async def _assert_course_access(course_id: int, user: User, db: AsyncSession) ->
 
 async def _get_exercise(exercise_id: int, course_id: int, db: AsyncSession) -> Exercise:
     result = await db.execute(
-        select(Exercise).where(Exercise.id == exercise_id, Exercise.course_id == course_id)
+        select(Exercise).where(
+            Exercise.id == exercise_id, Exercise.course_id == course_id
+        )
     )
     exercise = result.scalar_one_or_none()
     if not exercise:

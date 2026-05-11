@@ -15,7 +15,9 @@ router = APIRouter(prefix="/api", tags=["grades"])
 async def _load_grade_relations(grade: Grade, db: AsyncSession) -> list[Feedback]:
     await db.refresh(grade, ["graded_by"])
     feedbacks_result = await db.execute(
-        select(Feedback).where(Feedback.grade_id == grade.id).order_by(Feedback.created_at)
+        select(Feedback)
+        .where(Feedback.grade_id == grade.id)
+        .order_by(Feedback.created_at)
     )
     feedbacks = feedbacks_result.scalars().all()
     author_ids = list({f.author_id for f in feedbacks})
@@ -71,7 +73,9 @@ async def set_grade(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Exercise).where(Exercise.id == exercise_id, Exercise.course_id == course_id)
+        select(Exercise).where(
+            Exercise.id == exercise_id, Exercise.course_id == course_id
+        )
     )
     exercise = result.scalar_one_or_none()
     if not exercise:
@@ -80,7 +84,9 @@ async def set_grade(
     _validate_grade_value(data.value, exercise)
 
     result = await db.execute(
-        select(Grade).where(Grade.user_id == student_id, Grade.exercise_id == exercise_id)
+        select(Grade).where(
+            Grade.user_id == student_id, Grade.exercise_id == exercise_id
+        )
     )
     grade = result.scalar_one_or_none()
 
@@ -117,7 +123,9 @@ async def delete_grade(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Grade).where(Grade.user_id == student_id, Grade.exercise_id == exercise_id)
+        select(Grade).where(
+            Grade.user_id == student_id, Grade.exercise_id == exercise_id
+        )
     )
     grade = result.scalar_one_or_none()
     if not grade:
@@ -126,7 +134,10 @@ async def delete_grade(
     await db.commit()
 
 
-@router.post("/exercises/{exercise_id}/grades/me/mark-viewed", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/exercises/{exercise_id}/grades/me/mark-viewed",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def mark_grade_viewed(
     exercise_id: int,
     user: User = Depends(get_current_user),
@@ -147,7 +158,9 @@ async def get_unviewed_grade_count(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(func.count(Grade.id)).where(Grade.user_id == user.id, Grade.viewed_at.is_(None))
+        select(func.count(Grade.id)).where(
+            Grade.user_id == user.id, Grade.viewed_at.is_(None)
+        )
     )
     return {"count": result.scalar_one()}
 
@@ -165,7 +178,9 @@ async def add_teacher_feedback(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Grade).where(Grade.user_id == student_id, Grade.exercise_id == exercise_id)
+        select(Grade).where(
+            Grade.user_id == student_id, Grade.exercise_id == exercise_id
+        )
     )
     grade = result.scalar_one_or_none()
     if not grade:
@@ -208,13 +223,19 @@ async def add_student_feedback(
 def _validate_grade_value(value: str, exercise: Exercise) -> None:
     if exercise.grade_type == "pass_fail":
         if value not in ("pass", "fail"):
-            raise HTTPException(status_code=400, detail="Value must be 'pass' or 'fail'")
+            raise HTTPException(
+                status_code=400, detail="Value must be 'pass' or 'fail'"
+            )
     elif exercise.grade_type == "numeric":
         try:
             num = float(value)
         except ValueError:
             raise HTTPException(status_code=400, detail="Grade value must be a number")
         if exercise.grade_min is not None and num < exercise.grade_min:
-            raise HTTPException(status_code=400, detail=f"Grade must be at least {exercise.grade_min}")
+            raise HTTPException(
+                status_code=400, detail=f"Grade must be at least {exercise.grade_min}"
+            )
         if exercise.grade_max is not None and num > exercise.grade_max:
-            raise HTTPException(status_code=400, detail=f"Grade must be at most {exercise.grade_max}")
+            raise HTTPException(
+                status_code=400, detail=f"Grade must be at most {exercise.grade_max}"
+            )
