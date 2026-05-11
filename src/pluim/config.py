@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     database_url: str = "sqlite+aiosqlite:////data/db/canvas.db"
     upload_dir: str = "/data/uploads"
+    rubrics_dir: str = "./rubrics"
     max_upload_size_mb: int = 50
     admin_github_usernames: str = ""  # comma-separated list of initial admins
     jwt_algorithm: str = "HS256"

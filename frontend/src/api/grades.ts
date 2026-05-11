@@ -1,5 +1,5 @@
 import client from './client'
-import type { Feedback, Grade } from '../types'
+import type { Feedback, Grade, RubricScores } from '../types'
 
 export const getMyGrade = (exerciseId: number) =>
   client.get<Grade | null>(`/exercises/${exerciseId}/grades/me`).then((r) => r.data)
@@ -31,4 +31,17 @@ export const addTeacherFeedback = (
 export const addStudentFeedback = (exerciseId: number, content: string) =>
   client
     .post<Feedback>(`/exercises/${exerciseId}/grades/me/feedback`, { content })
+    .then((r) => r.data)
+
+export const saveRubricScores = (
+  courseId: number,
+  studentId: number,
+  exerciseId: number,
+  scores: RubricScores,
+) =>
+  client
+    .put<Grade>(
+      `/courses/${courseId}/students/${studentId}/exercises/${exerciseId}/rubric-scores`,
+      { scores },
+    )
     .then((r) => r.data)

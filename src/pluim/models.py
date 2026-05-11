@@ -112,6 +112,7 @@ class Exercise(Base):
     grade_min: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
     grade_max: Mapped[float | None] = mapped_column(Float, nullable=True, default=10.0)
     rubric_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rubric_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # mandatory | optional | none
     upload_requirement: Mapped[str] = mapped_column(
@@ -182,6 +183,7 @@ class Grade(Base):
         Integer, ForeignKey("users.id"), nullable=False
     )
     viewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rubric_scores: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

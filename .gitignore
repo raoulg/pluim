@@ -31,3 +31,7 @@ canvas-dev.db
 # OS
 .DS_Store
 .claude/
+
+# Rubric templates — only example.json is tracked
+/rubrics/*.json
+!/rubrics/example.json

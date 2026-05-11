@@ -6,11 +6,322 @@ import MDEditor from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
 import '@uiw/react-markdown-preview/markdown.css'
 import { getCourseOverview } from '../api/courses'
-import { setGrade, addTeacherFeedback } from '../api/grades'
+import { setGrade, addTeacherFeedback, saveRubricScores } from '../api/grades'
 import client from '../api/client'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
-import type { CourseOverview, Exercise, Feedback, Grade, OverviewCell, OverviewRow, User } from '../types'
+import type {
+  CourseOverview,
+  Exercise,
+  Feedback,
+  Grade,
+  OverviewCell,
+  OverviewRow,
+  RubricCriterion,
+  RubricCriterionScore,
+  RubricScores,
+  RubricTemplate,
+  User,
+} from '../types'
+
+// ── Rubric helpers ────────────────────────────────────────────────────────────
+
+function parseTemplate(raw: string | null): RubricTemplate | null {
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+type RubricCategory = 'knockout' | 'onvoldoende' | 'voldoende' | 'uitstekend'
+
+const CATEGORY_RANGE: Record<Exclude<RubricCategory, 'knockout'>, [number, number]> = {
+  onvoldoende: [0, 0.4],
+  voldoende: [0.6, 0.8],
+  uitstekend: [0.8, 1.0],
+}
+const CATEGORY_DEFAULT: Record<Exclude<RubricCategory, 'knockout'>, number> = {
+  onvoldoende: 0.3,
+  voldoende: 0.7,
+  uitstekend: 0.9,
+}
+const CATEGORY_COLOR: Record<RubricCategory, string> = {
+  knockout: 'bg-red-600 text-white',
+  onvoldoende: 'bg-orange-600 text-white',
+  voldoende: 'bg-blue-600 text-white',
+  uitstekend: 'bg-emerald-600 text-white',
+}
+const CATEGORY_GHOST: Record<RubricCategory, string> = {
+  knockout: 'bg-surface-700 text-red-400 hover:bg-red-900/30 border border-red-900/40',
+  onvoldoende: 'bg-surface-700 text-orange-400 hover:bg-orange-900/30 border border-orange-900/30',
+  voldoende: 'bg-surface-700 text-blue-400 hover:bg-blue-900/30 border border-blue-900/30',
+  uitstekend: 'bg-surface-700 text-emerald-400 hover:bg-emerald-900/30 border border-emerald-900/30',
+}
+
+function scoreToCategory(s: RubricCriterionScore): RubricCategory {
+  if (s.is_knockout) return 'knockout'
+  if (s.score <= 0.4) return 'onvoldoende'
+  if (s.score <= 0.8) return 'voldoende'
+  return 'uitstekend'
+}
+
+function calcGrade(template: RubricTemplate, scores: RubricScores) {
+  const { criteria, verslag_weight, code_weight } = template
+  const hasKnockout = criteria.some((c) => scores[c.id]?.is_knockout)
+  if (hasKnockout) return { verslagScore: 0, codeScore: 0, finalGrade: 1, hasKnockout: true }
+
+  const verslag = criteria.filter((c) => c.section === 'verslag')
+  const code = criteria.filter((c) => c.section === 'code')
+  const vW = verslag.reduce((a, c) => a + c.weight, 0)
+  const cW = code.reduce((a, c) => a + c.weight, 0)
+  const vSum = verslag.reduce((a, c) => a + (scores[c.id]?.score ?? 0) * c.weight, 0)
+  const cSum = code.reduce((a, c) => a + (scores[c.id]?.score ?? 0) * c.weight, 0)
+  const verslagScore = Math.round(((vW > 0 ? vSum / vW : 0) * 10) * 10) / 10
+  const codeScore = Math.round(((cW > 0 ? cSum / cW : 0) * 10) * 10) / 10
+  const finalGrade = Math.round((verslag_weight * verslagScore + code_weight * codeScore) * 10) / 10
+  return { verslagScore, codeScore, finalGrade, hasKnockout: false }
+}
+
+// ── CriterionRow ──────────────────────────────────────────────────────────────
+
+function CriterionRow({
+  criterion,
+  score,
+  onChange,
+}: {
+  criterion: RubricCriterion
+  score: RubricCriterionScore | undefined
+  onChange: (s: RubricCriterionScore) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const category = score ? scoreToCategory(score) : null
+
+  const select = (cat: RubricCategory) => {
+    if (cat === 'knockout') {
+      onChange({ score: 0, is_knockout: true, remark: score?.remark ?? '' })
+    } else {
+      const [min, max] = CATEGORY_RANGE[cat]
+      const s = score && !score.is_knockout && scoreToCategory(score) === cat
+        ? Math.min(Math.max(score.score, min), max)
+        : CATEGORY_DEFAULT[cat]
+      onChange({ score: s, is_knockout: false, remark: score?.remark ?? '' })
+    }
+  }
+
+  const categories: RubricCategory[] = criterion.knockout
+    ? ['knockout', 'onvoldoende', 'voldoende', 'uitstekend']
+    : ['onvoldoende', 'voldoende', 'uitstekend']
+
+  const catLabel: Record<RubricCategory, string> = {
+    knockout: 'KO',
+    onvoldoende: 'Onv',
+    voldoende: 'Vold',
+    uitstekend: 'Uitst',
+  }
+
+  return (
+    <div className="border border-violet-900/30 rounded-lg p-3 space-y-2 bg-surface-900/60">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-slate-200">{criterion.title}</span>
+          <span className="ml-2 text-xs text-slate-500">×{criterion.weight}</span>
+        </div>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs text-slate-600 hover:text-slate-400 shrink-0 transition-colors"
+        >
+          {expanded ? '▲' : '▼'}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => select(cat)}
+            className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+              category === cat ? CATEGORY_COLOR[cat] : CATEGORY_GHOST[cat]
+            }`}
+          >
+            {catLabel[cat]}
+          </button>
+        ))}
+        {score && !score.is_knockout && (
+          <div className="flex items-center gap-1 ml-1">
+            <input
+              type="number"
+              value={score.score}
+              min={CATEGORY_RANGE[scoreToCategory(score) as Exclude<RubricCategory, 'knockout'>]?.[0] ?? 0}
+              max={CATEGORY_RANGE[scoreToCategory(score) as Exclude<RubricCategory, 'knockout'>]?.[1] ?? 1}
+              step={0.05}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                if (!isNaN(v)) onChange({ ...score, score: v })
+              }}
+              className="w-16 px-2 py-1 text-xs bg-surface-700 border border-slate-600 rounded text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+            <span className="text-xs text-slate-500">
+              = {(score.score * criterion.weight).toFixed(2)} pt
+            </span>
+          </div>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="mt-1 space-y-1.5 text-xs text-slate-400 bg-surface-800/60 rounded p-2.5">
+          {criterion.knockout && (
+            <div><span className="font-medium text-red-400">Knock out: </span>{criterion.knockout}</div>
+          )}
+          <div><span className="font-medium text-orange-400">Onvoldoende (0–0.4): </span>{criterion.onvoldoende}</div>
+          <div><span className="font-medium text-blue-400">Voldoende (0.6–0.8): </span>{criterion.voldoende}</div>
+          <div><span className="font-medium text-emerald-400">Uitstekend (0.8–1.0): </span>{criterion.uitstekend}</div>
+          {criterion.aandachtspunten && (
+            <div><span className="font-medium text-slate-300">Aandachtspunten: </span>{criterion.aandachtspunten}</div>
+          )}
+        </div>
+      )}
+
+      <input
+        type="text"
+        value={score?.remark ?? ''}
+        onChange={(e) =>
+          onChange({ ...(score ?? { score: 0, is_knockout: false }), remark: e.target.value })
+        }
+        placeholder="Opmerking…"
+        className="w-full px-2 py-1 text-xs bg-surface-700 border border-slate-600/50 rounded text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary-500"
+      />
+    </div>
+  )
+}
+
+// ── RubricGrader ──────────────────────────────────────────────────────────────
+
+function RubricGrader({
+  template,
+  initialScores,
+  student,
+  exercise,
+  courseId,
+  onSaved,
+}: {
+  template: RubricTemplate
+  initialScores: RubricScores | null
+  student: User
+  exercise: Exercise
+  courseId: number
+  onSaved: () => Promise<void>
+}) {
+  const [scores, setScores] = useState<RubricScores>(() => initialScores ?? {})
+  const [saving, setSaving] = useState(false)
+
+  const setScore = (id: string, s: RubricCriterionScore) =>
+    setScores((prev) => ({ ...prev, [id]: s }))
+
+  const { verslagScore, codeScore, finalGrade, hasKnockout } = calcGrade(template, scores)
+  const scoredCount = template.criteria.filter((c) => c.id in scores).length
+  const total = template.criteria.length
+  const allScored = scoredCount === total
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await saveRubricScores(courseId, student.id, exercise.id, scores)
+      toast.success('Rubric saved')
+      await onSaved()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to save rubric')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const verslagCriteria = template.criteria.filter((c) => c.section === 'verslag')
+  const codeCriteria = template.criteria.filter((c) => c.section === 'code')
+
+  return (
+    <div className="space-y-4">
+      {/* Verslag section */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Verslag
+          </h4>
+          <span className="text-xs text-slate-600">{template.verslag_weight * 100}%</span>
+        </div>
+        <div className="space-y-2">
+          {verslagCriteria.map((c) => (
+            <CriterionRow
+              key={c.id}
+              criterion={c}
+              score={scores[c.id]}
+              onChange={(s) => setScore(c.id, s)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Code section */}
+      {codeCriteria.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Code
+            </h4>
+            <span className="text-xs text-slate-600">{template.code_weight * 100}%</span>
+          </div>
+          <div className="space-y-2">
+            {codeCriteria.map((c) => (
+              <CriterionRow
+                key={c.id}
+                criterion={c}
+                score={scores[c.id]}
+                onChange={(s) => setScore(c.id, s)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Grade summary */}
+      <div className={`rounded-xl p-4 border ${hasKnockout ? 'border-red-600/60 bg-red-900/20' : 'border-violet-800/30 bg-surface-800'}`}>
+        {hasKnockout ? (
+          <div className="text-red-400 font-semibold text-sm">Knock out — eindcijfer: 1</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-xs text-slate-500 mb-0.5">Verslag</div>
+              <div className="text-lg font-bold text-slate-200">{scoredCount > 0 ? verslagScore.toFixed(1) : '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 mb-0.5">Code</div>
+              <div className="text-lg font-bold text-slate-200">
+                {codeCriteria.length > 0 && codeCriteria.every((c) => c.id in scores)
+                  ? codeScore.toFixed(1)
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 mb-0.5">Eindcijfer</div>
+              <div className={`text-2xl font-bold ${allScored ? 'text-primary-400' : 'text-slate-600'}`}>
+                {allScored ? finalGrade.toFixed(1) : '—'}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving || !allScored}
+        className="w-full py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
+      >
+        {saving
+          ? 'Saving…'
+          : allScored
+          ? 'Save rubric & grade'
+          : `Score ${scoredCount}/${total} criteria`}
+      </button>
+    </div>
+  )
+}
 
 export default function GradingPage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -422,6 +733,7 @@ function ReviewArea({
   onSaved: () => Promise<void>
 }) {
   const { file, url, grade } = cell
+  const rubricTemplate = parseTemplate(exercise.rubric_template ?? null)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [value, setValue] = useState(grade?.value ?? '')
@@ -567,41 +879,63 @@ function ReviewArea({
         </div>
       )}
 
-      {/* Grade form */}
-      <div className="bg-surface-800 border border-violet-800/30 rounded-xl p-4 space-y-3">
-        <h4 className="text-sm font-semibold text-slate-300">
-          {grade ? 'Edit grade' : 'Add grade'}
-        </h4>
-        {exercise.grade_type === 'pass_fail' ? (
-          <select
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          >
-            <option value="">Select…</option>
-            <option value="pass">Pass</option>
-            <option value="fail">Fail</option>
-          </select>
-        ) : (
-          <input
-            type="number"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={`${exercise.grade_min}–${exercise.grade_max}`}
-            step="0.1"
-            min={exercise.grade_min ?? undefined}
-            max={exercise.grade_max ?? undefined}
-            className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+      {/* Grade form — rubric or manual */}
+      {rubricTemplate ? (
+        <div className="bg-surface-800 border border-violet-800/30 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-slate-300">Rubric</h4>
+            {grade && (
+              <span className="text-xs text-primary-400 font-semibold">
+                Huidig cijfer: {grade.value}
+              </span>
+            )}
+          </div>
+          <RubricGrader
+            key={`rubric-${grade?.id ?? 'new'}`}
+            template={rubricTemplate}
+            initialScores={grade?.rubric_scores ?? null}
+            student={student}
+            exercise={exercise}
+            courseId={courseId}
+            onSaved={onSaved}
           />
-        )}
-        <button
-          onClick={handleSave}
-          disabled={saving || !value.trim()}
-          className="w-full py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
-        >
-          {saving ? 'Saving…' : 'Save grade'}
-        </button>
-      </div>
+        </div>
+      ) : (
+        <div className="bg-surface-800 border border-violet-800/30 rounded-xl p-4 space-y-3">
+          <h4 className="text-sm font-semibold text-slate-300">
+            {grade ? 'Edit grade' : 'Add grade'}
+          </h4>
+          {exercise.grade_type === 'pass_fail' ? (
+            <select
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="">Select…</option>
+              <option value="pass">Pass</option>
+              <option value="fail">Fail</option>
+            </select>
+          ) : (
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={`${exercise.grade_min}–${exercise.grade_max}`}
+              step="0.1"
+              min={exercise.grade_min ?? undefined}
+              max={exercise.grade_max ?? undefined}
+              className="w-full px-3 py-2 text-sm bg-surface-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !value.trim()}
+            className="w-full py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm"
+          >
+            {saving ? 'Saving…' : 'Save grade'}
+          </button>
+        </div>
+      )}
 
       {/* Feedback thread */}
       {grade && (

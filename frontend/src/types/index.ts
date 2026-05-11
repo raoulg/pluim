@@ -19,6 +19,32 @@ export interface Course {
 
 export type SubmissionRequirement = 'mandatory' | 'optional' | 'none'
 
+export interface RubricCriterion {
+  id: string
+  title: string
+  weight: number
+  section: 'verslag' | 'code'
+  knockout: string | null
+  onvoldoende: string
+  voldoende: string
+  uitstekend: string
+  aandachtspunten: string | null
+}
+
+export interface RubricTemplate {
+  criteria: RubricCriterion[]
+  verslag_weight: number
+  code_weight: number
+}
+
+export interface RubricCriterionScore {
+  score: number
+  is_knockout: boolean
+  remark: string
+}
+
+export type RubricScores = Record<string, RubricCriterionScore>
+
 export interface Exercise {
   id: number
   course_id: number
@@ -32,6 +58,7 @@ export interface Exercise {
   grade_min: number | null
   grade_max: number | null
   rubric_description: string | null
+  rubric_template: string | null
   order_index: number
   upload_requirement: SubmissionRequirement
   url_requirement: SubmissionRequirement
@@ -69,6 +96,7 @@ export interface Grade {
   created_at: string
   updated_at: string
   feedbacks: Feedback[]
+  rubric_scores: RubricScores | null
 }
 
 export interface MySubmissions {

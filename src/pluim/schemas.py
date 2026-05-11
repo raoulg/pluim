@@ -1,7 +1,8 @@
+import json
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic.functional_serializers import PlainSerializer
 
 UTCDatetime = Annotated[
@@ -66,6 +67,7 @@ class ExerciseCreate(BaseModel):
     grade_min: float | None = 0.0
     grade_max: float | None = 10.0
     rubric_description: str | None = None
+    rubric_template: str | None = None
     order_index: int = 0
     upload_requirement: str = "optional"  # mandatory | optional | none
     url_requirement: str = "optional"  # mandatory | optional | none
@@ -82,6 +84,7 @@ class ExerciseUpdate(BaseModel):
     grade_min: float | None = None
     grade_max: float | None = None
     rubric_description: str | None = None
+    rubric_template: str | None = None
     order_index: int | None = None
     upload_requirement: str | None = None
     url_requirement: str | None = None
@@ -101,6 +104,7 @@ class ExerciseOut(BaseModel):
     grade_min: float | None
     grade_max: float | None
     rubric_description: str | None
+    rubric_template: str | None
     order_index: int
     upload_requirement: str
     url_requirement: str
@@ -151,6 +155,16 @@ class GradeCreate(BaseModel):
     comment: str | None = None
 
 
+class RubricCriterionScore(BaseModel):
+    score: float = 0.0
+    is_knockout: bool = False
+    remark: str = ""
+
+
+class RubricScoresIn(BaseModel):
+    scores: dict[str, RubricCriterionScore]
+
+
 class FeedbackCreate(BaseModel):
     content: str
 
@@ -176,6 +190,17 @@ class GradeOut(BaseModel):
     created_at: UTCDatetime
     updated_at: UTCDatetime
     feedbacks: list[FeedbackOut] = []
+    rubric_scores: dict | None = None
+
+    @field_validator("rubric_scores", mode="before")
+    @classmethod
+    def _parse_rubric_scores(cls, v: str | dict | None) -> dict | None:
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return v
 
 
 # ── Overview (professor dashboard) ───────────────────────────────────────────

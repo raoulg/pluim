@@ -14,25 +14,26 @@ class Base(DeclarativeBase):
 
 
 async def init_db() -> None:
+    """Create all tables. Assumes a clean (new) database."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Add columns introduced after initial schema creation (safe to re-run)
-        for col, default in [
-            ("upload_requirement", "'optional'"),
-            ("url_requirement", "'optional'"),
-        ]:
+
+
+async def migrate_db() -> None:
+    """Add columns introduced after the initial schema. Safe to re-run on any DB."""
+    _migrations = [
+        "ALTER TABLE exercises ADD COLUMN upload_requirement VARCHAR(20) NOT NULL DEFAULT 'optional'",
+        "ALTER TABLE exercises ADD COLUMN url_requirement VARCHAR(20) NOT NULL DEFAULT 'optional'",
+        "ALTER TABLE grades ADD COLUMN viewed_at DATETIME",
+        "ALTER TABLE exercises ADD COLUMN rubric_template TEXT",
+        "ALTER TABLE grades ADD COLUMN rubric_scores TEXT",
+    ]
+    async with engine.begin() as conn:
+        for sql in _migrations:
             try:
-                await conn.exec_driver_sql(
-                    f"ALTER TABLE exercises ADD COLUMN {col} VARCHAR(20) NOT NULL DEFAULT {default}"
-                )
+                await conn.exec_driver_sql(sql)
             except Exception:
                 pass  # column already exists
-        try:
-            await conn.exec_driver_sql(
-                "ALTER TABLE grades ADD COLUMN viewed_at DATETIME"
-            )
-        except Exception:
-            pass  # column already exists
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

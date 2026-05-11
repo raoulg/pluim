@@ -17,7 +17,7 @@ RED   := \033[31m
 .DEFAULT_GOAL := help
 .PHONY: help setup secret build up down restart logs status \
         logs-backend logs-frontend shell-backend shell-frontend \
-        restart-backend restart-frontend deploy push-deploy \
+        restart-backend restart-frontend deploy push-deploy scp-rubric \
         dev-backend dev-frontend install \
         backup db clean clean-volumes nuke
 
@@ -100,6 +100,18 @@ push-deploy: _require-env ## git push, SSH to server, git pull + make deploy
 	git push; \
 	printf "$(CYAN)→  ssh $$DEPLOY_USER@$$DEPLOY_HOST$(RESET)\n"; \
 	ssh $$DEPLOY_USER@$$DEPLOY_HOST "cd $$DEPLOY_PATH && git pull && make deploy"
+
+scp-rubric: _require-env ## Copy local rubrics/*.json to the remote server
+	@DEPLOY_HOST=$$(grep '^DEPLOY_HOST=' .env | cut -d= -f2); \
+	DEPLOY_USER=$$(grep '^DEPLOY_USER=' .env | cut -d= -f2); \
+	DEPLOY_PATH=$$(grep '^DEPLOY_PATH=' .env | cut -d= -f2); \
+	test -n "$$DEPLOY_HOST" || (printf "$(RED)✗  DEPLOY_HOST not set in .env$(RESET)\n" && exit 1); \
+	test -n "$$DEPLOY_USER" || (printf "$(RED)✗  DEPLOY_USER not set in .env$(RESET)\n" && exit 1); \
+	test -n "$$DEPLOY_PATH" || (printf "$(RED)✗  DEPLOY_PATH not set in .env$(RESET)\n" && exit 1); \
+	printf "$(CYAN)→  Uploading rubrics/ to $$DEPLOY_USER@$$DEPLOY_HOST:$$DEPLOY_PATH/rubrics/$(RESET)\n"; \
+	ssh $$DEPLOY_USER@$$DEPLOY_HOST "mkdir -p $$DEPLOY_PATH/rubrics"; \
+	scp rubrics/*.json $$DEPLOY_USER@$$DEPLOY_HOST:$$DEPLOY_PATH/rubrics/ && \
+	printf "$(GREEN)✓  Rubrics uploaded — container sees changes immediately (bind mount)$(RESET)\n"
 
 deploy: _require-env ## Pull, rebuild images, and restart (use this after git pull)
 	$(COMPOSE) down

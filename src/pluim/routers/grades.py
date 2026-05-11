@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,7 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
 from pluim.models import Exercise, Feedback, Grade, User
-from pluim.schemas import FeedbackCreate, FeedbackOut, GradeCreate, GradeOut, UserOut
+from pluim.schemas import (
+    FeedbackCreate,
+    FeedbackOut,
+    GradeCreate,
+    GradeOut,
+    RubricCriterionScore,
+    RubricScoresIn,
+    UserOut,
+)
 
 router = APIRouter(prefix="/api", tags=["grades"])
 
@@ -29,6 +38,30 @@ async def _load_grade_relations(grade: Grade, db: AsyncSession) -> list[Feedback
     return list(feedbacks)
 
 
+def _calculate_rubric_grade(
+    template: dict, scores: dict[str, RubricCriterionScore]
+) -> float:
+    criteria = template["criteria"]
+    verslag_weight = template.get("verslag_weight", 0.7)
+    code_weight = template.get("code_weight", 0.3)
+
+    if any(scores[c["id"]].is_knockout for c in criteria if c["id"] in scores):
+        return 1.0
+
+    verslag = [c for c in criteria if c["section"] == "verslag"]
+    code = [c for c in criteria if c["section"] == "code"]
+    v_total = sum(c["weight"] for c in verslag)
+    c_total = sum(c["weight"] for c in code)
+
+    v_sum = sum(scores[c["id"]].score * c["weight"] for c in verslag if c["id"] in scores)
+    c_sum = sum(scores[c["id"]].score * c["weight"] for c in code if c["id"] in scores)
+
+    v_score = (v_sum / v_total * 10) if v_total > 0 else 0.0
+    c_score = (c_sum / c_total * 10) if c_total > 0 else 0.0
+
+    return round(verslag_weight * v_score + code_weight * c_score, 1)
+
+
 def _make_grade_out(grade: Grade, feedbacks: list[Feedback]) -> GradeOut:
     return GradeOut(
         id=grade.id,
@@ -41,6 +74,7 @@ def _make_grade_out(grade: Grade, feedbacks: list[Feedback]) -> GradeOut:
         created_at=grade.created_at,
         updated_at=grade.updated_at,
         feedbacks=[FeedbackOut.model_validate(f) for f in feedbacks],
+        rubric_scores=json.loads(grade.rubric_scores) if grade.rubric_scores else None,
     )
 
 
@@ -132,6 +166,61 @@ async def delete_grade(
         raise HTTPException(status_code=404, detail="Grade not found")
     await db.delete(grade)
     await db.commit()
+
+
+@router.put(
+    "/courses/{course_id}/students/{student_id}/exercises/{exercise_id}/rubric-scores",
+    response_model=GradeOut,
+)
+async def save_rubric_scores(
+    course_id: int,
+    student_id: int,
+    exercise_id: int,
+    data: RubricScoresIn,
+    grader: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> GradeOut:
+    result = await db.execute(
+        select(Exercise).where(
+            Exercise.id == exercise_id, Exercise.course_id == course_id
+        )
+    )
+    exercise = result.scalar_one_or_none()
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    if not exercise.rubric_template:
+        raise HTTPException(status_code=400, detail="Exercise has no rubric template")
+
+    template = json.loads(exercise.rubric_template)
+    final_grade = _calculate_rubric_grade(template, data.scores)
+    scores_json = json.dumps({k: v.model_dump() for k, v in data.scores.items()})
+
+    result = await db.execute(
+        select(Grade).where(
+            Grade.user_id == student_id, Grade.exercise_id == exercise_id
+        )
+    )
+    grade = result.scalar_one_or_none()
+
+    if grade:
+        grade.value = str(final_grade)
+        grade.rubric_scores = scores_json
+        grade.graded_by_id = grader.id
+        grade.viewed_at = None
+    else:
+        grade = Grade(
+            user_id=student_id,
+            exercise_id=exercise_id,
+            value=str(final_grade),
+            rubric_scores=scores_json,
+            graded_by_id=grader.id,
+        )
+        db.add(grade)
+
+    await db.commit()
+    await db.refresh(grade)
+    feedbacks = await _load_grade_relations(grade, db)
+    return _make_grade_out(grade, feedbacks)
 
 
 @router.post(

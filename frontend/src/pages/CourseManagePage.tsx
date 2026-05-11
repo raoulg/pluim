@@ -17,6 +17,7 @@ import {
   regenerateCode,
   updateCourse,
 } from '../api/courses'
+import { listRubrics, getRubric } from '../api/rubrics'
 import Layout from '../components/Layout'
 import type { Course, Exercise, User } from '../types'
 
@@ -41,6 +42,7 @@ const emptyExercise = (): Partial<Exercise> => ({
   grade_min: 0,
   grade_max: 10,
   rubric_description: '',
+  rubric_template: null,
   order_index: 0,
   upload_requirement: 'optional',
   url_requirement: 'optional',
@@ -330,6 +332,27 @@ function ExerciseForm({
   saving: boolean
   isNew: boolean
 }) {
+  const [rubricList, setRubricList] = useState<string[]>([])
+  const [selectedRubric, setSelectedRubric] = useState('')
+  const [loadingRubric, setLoadingRubric] = useState(false)
+
+  useEffect(() => {
+    listRubrics().then(setRubricList).catch(() => {})
+  }, [])
+
+  const handleLoadRubric = async () => {
+    if (!selectedRubric) return
+    setLoadingRubric(true)
+    try {
+      const rubric = await getRubric(selectedRubric)
+      set('rubric_template', JSON.stringify(rubric, null, 2))
+    } catch {
+      toast.error('Failed to load rubric')
+    } finally {
+      setLoadingRubric(false)
+    }
+  }
+
   return (
     <div className="bg-surface-900 border border-slate-700/60 rounded-xl p-6 space-y-4 max-w-2xl" data-color-mode="dark">
       <h2 className="font-semibold text-slate-100">{isNew ? 'New exercise' : 'Edit exercise'}</h2>
@@ -465,6 +488,62 @@ function ExerciseForm({
           preview="edit"
           height={160}
         />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs text-slate-400">Structured rubric template (JSON, optional)</label>
+          {data.rubric_template && (
+            <button
+              type="button"
+              onClick={() => set('rubric_template', null)}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {rubricList.length > 0 && (
+          <div className="flex gap-2 mb-2">
+            <select
+              value={selectedRubric}
+              onChange={(e) => setSelectedRubric(e.target.value)}
+              className={INPUT + ' flex-1 text-xs py-1'}
+            >
+              <option value="">Select a rubric…</option>
+              {rubricList.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleLoadRubric}
+              disabled={!selectedRubric || loadingRubric}
+              className="px-3 py-1 text-xs bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white rounded transition-colors"
+            >
+              {loadingRubric ? 'Loading…' : 'Load'}
+            </button>
+          </div>
+        )}
+        <textarea
+          value={data.rubric_template ?? ''}
+          onChange={(e) => set('rubric_template', e.target.value || null)}
+          placeholder="Paste JSON rubric template here, or use the DAV preset above…"
+          rows={6}
+          className={INPUT + ' font-mono text-xs resize-y'}
+        />
+        {data.rubric_template && (() => {
+          try {
+            const t = JSON.parse(data.rubric_template)
+            return (
+              <div className="mt-1 text-xs text-emerald-500">
+                {t.criteria?.length ?? 0} criteria · verslag {(t.verslag_weight ?? 0.7) * 100}% / code {(t.code_weight ?? 0.3) * 100}%
+              </div>
+            )
+          } catch {
+            return <div className="mt-1 text-xs text-red-400">Invalid JSON</div>
+          }
+        })()}
       </div>
 
       <div>

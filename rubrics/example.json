@@ -1,0 +1,39 @@
+{
+  "criteria": [
+    {
+      "id": "introduction",
+      "title": "Introduction",
+      "weight": 1.0,
+      "section": "verslag",
+      "knockout": null,
+      "onvoldoende": "No context or motivation. Missing problem statement.",
+      "voldoende": "Basic context provided with a clear problem statement.",
+      "uitstekend": "Rich context, strong motivation, and a precise research question.",
+      "aandachtspunten": null
+    },
+    {
+      "id": "analysis",
+      "title": "Analysis",
+      "weight": 2.0,
+      "section": "verslag",
+      "knockout": "No analysis present.",
+      "onvoldoende": "Superficial analysis with no depth or supporting evidence.",
+      "voldoende": "Adequate analysis covering the main points with some evidence.",
+      "uitstekend": "Deep, thorough analysis with unexpected insights and solid evidence.",
+      "aandachtspunten": "Consider: quality of argumentation, use of evidence, critical thinking."
+    },
+    {
+      "id": "code_quality",
+      "title": "Code quality",
+      "weight": 1.0,
+      "section": "code",
+      "knockout": "Code does not run.",
+      "onvoldoende": "Code runs but is poorly structured and hard to follow.",
+      "voldoende": "Code is readable and reasonably well-organised.",
+      "uitstekend": "Code is clean, modular, type-hinted, and self-documenting.",
+      "aandachtspunten": null
+    }
+  ],
+  "verslag_weight": 0.7,
+  "code_weight": 0.3
+}

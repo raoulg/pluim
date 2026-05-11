@@ -5,14 +5,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from pluim.config import settings
-from pluim.database import init_db
-from pluim.routers import admin, auth, courses, exercises, grades, submissions
+from pluim.database import init_db, migrate_db
+from pluim.routers import admin, auth, courses, exercises, grades, rubrics, submissions
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(settings.upload_dir, exist_ok=True)
     await init_db()
+    await migrate_db()
     yield
 
 
@@ -35,6 +36,7 @@ app.include_router(courses.router)
 app.include_router(exercises.router)
 app.include_router(submissions.router)
 app.include_router(grades.router)
+app.include_router(rubrics.router)
 app.include_router(admin.router)
 
 

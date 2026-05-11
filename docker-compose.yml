@@ -8,8 +8,10 @@ services:
     environment:
       DATABASE_URL: sqlite+aiosqlite:////data/db/pluim.db
       UPLOAD_DIR: /data/uploads
+      RUBRICS_DIR: /data/rubrics
     volumes:
       - pluim_data:/data
+      - ./rubrics:/data/rubrics:ro
     expose:
       - "8000"
     healthcheck:
