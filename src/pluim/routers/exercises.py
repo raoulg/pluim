@@ -129,7 +129,7 @@ async def course_overview(
     student_ids = [s.id for s in students]
     exercise_ids = [e.id for e in exercises]
 
-    # latest submission per (user, exercise)
+    # latest submission per (user, exercise, type)
     submissions_result = await db.execute(
         select(Submission).where(
             Submission.user_id.in_(student_ids),
@@ -139,7 +139,7 @@ async def course_overview(
     all_submissions = submissions_result.scalars().all()
     latest_sub: dict[tuple, Submission] = {}
     for sub in all_submissions:
-        key = (sub.user_id, sub.exercise_id)
+        key = (sub.user_id, sub.exercise_id, sub.submission_type)
         if key not in latest_sub or sub.submitted_at > latest_sub[key].submitted_at:
             latest_sub[key] = sub
 
@@ -191,9 +191,9 @@ async def course_overview(
     for student in students:
         cells = {}
         for exercise in exercises:
-            key = (student.id, exercise.id)
-            sub = latest_sub.get(key)
-            grade = grade_map.get(key)
+            file_sub = latest_sub.get((student.id, exercise.id, "file"))
+            url_sub = latest_sub.get((student.id, exercise.id, "url"))
+            grade = grade_map.get((student.id, exercise.id))
             if grade:
                 grade_out = GradeOut(
                     id=grade.id,
@@ -213,7 +213,8 @@ async def course_overview(
             else:
                 grade_out = None
             cells[exercise.id] = OverviewCell(
-                submission=SubmissionOut.model_validate(sub) if sub else None,
+                file=SubmissionOut.model_validate(file_sub) if file_sub else None,
+                url=SubmissionOut.model_validate(url_sub) if url_sub else None,
                 grade=grade_out,
             )
         rows.append(OverviewRow(student=UserOut.model_validate(student), cells=cells))

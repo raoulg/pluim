@@ -10,7 +10,7 @@ import { setGrade, addTeacherFeedback } from '../api/grades'
 import client from '../api/client'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
-import type { CourseOverview, Exercise, Feedback, Grade, OverviewCell, OverviewRow, Submission, User } from '../types'
+import type { CourseOverview, Exercise, Feedback, Grade, OverviewCell, OverviewRow, User } from '../types'
 
 export default function GradingPage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -133,7 +133,7 @@ export default function GradingPage() {
                   </div>
                 </td>
                 {overview.exercises.map((ex) => {
-                  const cell = row.cells[ex.id] ?? { submission: null, grade: null }
+                  const cell = row.cells[ex.id] ?? { file: null, url: null, grade: null }
                   const isEdit = editing?.userId === row.student.id && editing?.exerciseId === ex.id
                   return (
                     <td
@@ -187,39 +187,44 @@ function CellView({
   exercise: Exercise
   onEdit: () => void
 }) {
-  const { submission, grade } = cell
+  const { file, url, grade } = cell
+  const hasSubmission = !!(file || url)
+  const isLate = !!(file?.is_late || url?.is_late)
 
   const statusColor = () => {
-    if (!submission) return 'bg-slate-800 text-slate-500'
-    if (submission.is_late) return 'bg-amber-900/30 text-amber-400'
+    if (!hasSubmission) return 'bg-slate-800 text-slate-500'
+    if (isLate) return 'bg-amber-900/30 text-amber-400'
     return 'bg-emerald-900/30 text-emerald-400'
   }
 
   return (
     <div className="space-y-1">
       <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${statusColor()}`}>
-        {!submission
+        {!hasSubmission
           ? '—'
-          : submission.submission_type === 'file'
-          ? (
-            <a
-              href={`/api/exercises/${exercise.id}/submissions/${submission.id}/download`}
-              className="hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {submission.original_filename ?? 'file'}
-            </a>
-          )
           : (
-            <a
-              href={submission.url!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              url
-            </a>
+            <span className="inline-flex items-center gap-1">
+              {file && (
+                <a
+                  href={`/api/exercises/${exercise.id}/submissions/${file.id}/download`}
+                  className="hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {file.original_filename ?? 'file'}
+                </a>
+              )}
+              {url && (
+                <a
+                  href={url.url!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {file ? 'url' : 'url'}
+                </a>
+              )}
+            </span>
           )}
       </div>
 
@@ -330,7 +335,7 @@ function ReviewModal({
   // Always use the freshest version of this student's row from the overview
   const currentRow = overview.rows.find((r) => r.student.id === studentRow.student.id) ?? studentRow
   const selectedEx = overview.exercises.find((e) => e.id === selectedExId)
-  const cell = selectedEx ? (currentRow.cells[selectedExId] ?? { submission: null, grade: null }) : null
+  const cell = selectedEx ? (currentRow.cells[selectedExId] ?? { file: null, url: null, grade: null }) : null
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -356,8 +361,8 @@ function ReviewModal({
           {/* Exercise sidebar */}
           <div className="w-52 shrink-0 border-r border-violet-800/40 overflow-y-auto">
             {overview.exercises.map((ex) => {
-              const c = currentRow.cells[ex.id] ?? { submission: null, grade: null }
-              const hasSubmission = !!c.submission
+              const c = currentRow.cells[ex.id] ?? { file: null, url: null, grade: null }
+              const hasSubmission = !!(c.file || c.url)
               const hasGrade = !!c.grade
               return (
                 <button
@@ -416,7 +421,7 @@ function ReviewArea({
   courseId: number
   onSaved: () => Promise<void>
 }) {
-  const { submission, grade } = cell
+  const { file, url, grade } = cell
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [value, setValue] = useState(grade?.value ?? '')
@@ -434,10 +439,10 @@ function ReviewArea({
     }
     setPdfBlobUrl(null)
 
-    if (submission?.submission_type === 'file') {
+    if (file) {
       setPdfLoading(true)
       client
-        .get(`/exercises/${exercise.id}/submissions/${submission.id}/download`, {
+        .get(`/exercises/${exercise.id}/submissions/${file.id}/download`, {
           responseType: 'blob',
           signal: controller.signal,
         })
@@ -445,9 +450,9 @@ function ReviewArea({
           const blob = new Blob([res.data], {
             type: (res.headers['content-type'] as string) || 'application/octet-stream',
           })
-          const url = URL.createObjectURL(blob)
-          prevBlobUrl.current = url
-          setPdfBlobUrl(url)
+          const blobUrl = URL.createObjectURL(blob)
+          prevBlobUrl.current = blobUrl
+          setPdfBlobUrl(blobUrl)
         })
         .catch(() => {})
         .finally(() => setPdfLoading(false))
@@ -460,7 +465,7 @@ function ReviewArea({
         prevBlobUrl.current = null
       }
     }
-  }, [exercise.id, submission?.id])
+  }, [exercise.id, file?.id])
 
   const handleSave = async () => {
     if (!value.trim()) return
@@ -503,39 +508,39 @@ function ReviewArea({
       </div>
 
       {/* Submission */}
-      {!submission && (
+      {!file && !url && (
         <div className="bg-surface-800 border border-violet-900/40 rounded-xl p-4 text-sm text-slate-500">
           No submission for this exercise.
         </div>
       )}
 
-      {submission?.submission_type === 'url' && (
+      {url && (
         <div className="bg-surface-800 border border-violet-900/40 rounded-xl p-4 space-y-1">
           <div className="text-xs text-slate-500 uppercase tracking-wide">URL submission</div>
           <a
-            href={submission.url!}
+            href={url.url!}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary-400 hover:text-primary-300 transition-colors text-sm break-all"
           >
-            {submission.url}
+            {url.url}
           </a>
           <div className="text-xs text-slate-600">
-            {format(new Date(submission.submitted_at), 'MMM d, yyyy HH:mm')}
-            {submission.is_late && <span className="ml-2 text-amber-500">Late</span>}
+            {format(new Date(url.submitted_at), 'MMM d, yyyy HH:mm')}
+            {url.is_late && <span className="ml-2 text-amber-500">Late</span>}
           </div>
         </div>
       )}
 
-      {submission?.submission_type === 'file' && (
+      {file && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-xs text-slate-400">
-              {submission.original_filename}
-              {submission.is_late && <span className="ml-2 text-amber-500">Late</span>}
+              {file.original_filename}
+              {file.is_late && <span className="ml-2 text-amber-500">Late</span>}
             </div>
             <a
-              href={`/api/exercises/${exercise.id}/submissions/${submission.id}/download`}
+              href={`/api/exercises/${exercise.id}/submissions/${file.id}/download`}
               className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
             >
               Download

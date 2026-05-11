@@ -84,7 +84,8 @@ export interface Finalization {
 }
 
 export interface OverviewCell {
-  submission: Submission | null
+  file: Submission | null
+  url: Submission | null
   grade: Grade | null
 }
 

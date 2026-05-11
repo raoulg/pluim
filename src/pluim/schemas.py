@@ -182,7 +182,8 @@ class GradeOut(BaseModel):
 
 
 class OverviewCell(BaseModel):
-    submission: SubmissionOut | None
+    file: SubmissionOut | None
+    url: SubmissionOut | None
     grade: GradeOut | None
 
 
