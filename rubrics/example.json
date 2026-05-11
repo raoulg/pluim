@@ -36,5 +36,8 @@
   ],
   "verslag_weight": 0.7,
   "code_weight": 0.3,
-  "bonuses": []
+  "bonuses": [
+    {"id": "homework", "title": "Huiswerk bonus", "max": 0.2},
+    {"id": "dashboard", "title": "Dashboard bonus", "max": 0.3}
+  ]
 }
