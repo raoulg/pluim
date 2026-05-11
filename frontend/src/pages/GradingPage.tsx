@@ -92,6 +92,7 @@ function CriterionRow({
   onChange: (s: RubricCriterionScore) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [richRemark, setRichRemark] = useState(false)
   const category = score ? scoreToCategory(score) : null
 
   const select = (cat: RubricCategory) => {
@@ -179,15 +180,40 @@ function CriterionRow({
         </div>
       )}
 
-      <input
-        type="text"
-        value={score?.remark ?? ''}
-        onChange={(e) =>
-          onChange({ ...(score ?? { score: 0, is_knockout: false }), remark: e.target.value })
-        }
-        placeholder="Opmerking…"
-        className="w-full px-2 py-1 text-xs bg-surface-700 border border-slate-600/50 rounded text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary-500"
-      />
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-slate-600">Opmerking</span>
+          <button
+            type="button"
+            onClick={() => setRichRemark((v) => !v)}
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            {richRemark ? 'plain text' : 'rich text'}
+          </button>
+        </div>
+        {richRemark ? (
+          <div data-color-mode="dark">
+            <MDEditor
+              value={score?.remark ?? ''}
+              onChange={(v) =>
+                onChange({ ...(score ?? { score: 0, is_knockout: false }), remark: v ?? '' })
+              }
+              preview="edit"
+              height={120}
+            />
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={score?.remark ?? ''}
+            onChange={(e) =>
+              onChange({ ...(score ?? { score: 0, is_knockout: false }), remark: e.target.value })
+            }
+            placeholder="Opmerking…"
+            className="w-full px-2 py-1 text-xs bg-surface-700 border border-slate-600/50 rounded text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+        )}
+      </div>
     </div>
   )
 }
