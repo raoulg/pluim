@@ -7,7 +7,7 @@ import '@uiw/react-md-editor/markdown-editor.css'
 import '@uiw/react-markdown-preview/markdown.css'
 import { getCourseOverview } from '../api/courses'
 import { setGrade, addTeacherFeedback, saveRubricScores } from '../api/grades'
-import { getConfig, devLoginAs } from '../api/auth'
+import { devLoginAs } from '../api/auth'
 import client from '../api/client'
 import Layout from '../components/Layout'
 import MarkdownRenderer from '../components/MarkdownRenderer'
@@ -449,17 +449,13 @@ export default function GradingPage() {
   const [overview, setOverview] = useState<CourseOverview | null>(null)
   const [editing, setEditing] = useState<{ userId: number; exerciseId: number } | null>(null)
   const [reviewStudent, setReviewStudent] = useState<OverviewRow | null>(null)
-  const [devMode, setDevMode] = useState(false)
 
   const load = () =>
     getCourseOverview(cid)
       .then(setOverview)
       .catch(() => toast.error('Failed to load overview'))
 
-  useEffect(() => {
-    load()
-    getConfig().then((c) => setDevMode(c.dev_mode)).catch(() => {})
-  }, [cid])
+  useEffect(() => { load() }, [cid])
 
   const handleViewAs = async (userId: number) => {
     try {
@@ -574,15 +570,13 @@ export default function GradingPage() {
                     >
                       Review →
                     </button>
-                    {devMode && (
-                      <button
-                        onClick={() => handleViewAs(row.student.id)}
-                        className="text-xs text-slate-600 hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Open course as this student in a new tab"
-                      >
-                        View as →
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleViewAs(row.student.id)}
+                      className="text-xs text-slate-600 hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Open course as this student in a new tab"
+                    >
+                      View as →
+                    </button>
                   </div>
                 </td>
                 {overview.exercises.map((ex) => {

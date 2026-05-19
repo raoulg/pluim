@@ -174,9 +174,11 @@ async def dev_login_user(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/dev-login-as/{user_id}")
-async def dev_login_as(user_id: int, db: AsyncSession = Depends(get_db)):
-    if not settings.dev_mode:
-        raise HTTPException(status_code=404, detail="Not found")
+async def dev_login_as(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
