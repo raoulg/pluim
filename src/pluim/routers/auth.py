@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pluim.config import settings
 from pluim.database import get_db
-from pluim.deps import get_current_user
+from pluim.deps import get_current_user, require_admin
 from pluim.models import User
 from pluim.schemas import UserOut
 
