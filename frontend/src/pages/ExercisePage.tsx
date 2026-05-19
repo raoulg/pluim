@@ -187,7 +187,7 @@ export default function ExercisePage() {
             <span>Opens: {format(new Date(exercise.start_date), 'MMM d, yyyy HH:mm')}</span>
           )}
           {exercise.due_date && (
-            <span className={isPast(new Date(exercise.due_date)) ? 'text-red-400' : ''}>
+            <span className={isPast(new Date(exercise.due_date)) && !anySubmission ? 'text-red-400' : ''}>
               Due: {format(new Date(exercise.due_date), 'MMM d, yyyy HH:mm')}
               {exercise.allow_late_upload && ' (late allowed)'}
             </span>
