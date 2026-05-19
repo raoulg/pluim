@@ -7,3 +7,5 @@ export const devLogin = () =>
   client.post<{ access_token: string }>('/auth/dev-login').then((r) => r.data.access_token)
 export const devLoginUser = () =>
   client.post<{ access_token: string }>('/auth/dev-login-user').then((r) => r.data.access_token)
+export const devLoginAs = (userId: number) =>
+  client.post<{ access_token: string }>(`/auth/dev-login-as/${userId}`).then((r) => r.data.access_token)

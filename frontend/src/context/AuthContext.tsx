@@ -8,6 +8,8 @@ interface AuthCtx {
   loading: boolean
   login: (token: string) => Promise<void>
   logout: () => void
+  endImpersonation: () => Promise<void>
+  isImpersonating: boolean
   unviewedGradeCount: number
   refreshUnviewedCount: () => void
 }
@@ -17,6 +19,7 @@ const Ctx = createContext<AuthCtx>({} as AuthCtx)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isImpersonating, setIsImpersonating] = useState(false)
   const [unviewedGradeCount, setUnviewedGradeCount] = useState(0)
 
   const fetchUnviewedCount = (currentUser: User | null) => {
@@ -32,14 +35,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUnviewedCount = () => fetchUnviewedCount(user)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const sessionToken = sessionStorage.getItem('token')
+    const token = sessionToken ?? localStorage.getItem('token')
     if (!token) { setLoading(false); return }
+    if (sessionToken) setIsImpersonating(true)
     getMe()
       .then((me) => {
         setUser(me)
         fetchUnviewedCount(me)
       })
-      .catch(() => localStorage.removeItem('token'))
+      .catch(() => {
+        sessionStorage.removeItem('token')
+        localStorage.removeItem('token')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -51,13 +59,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    sessionStorage.removeItem('token')
     localStorage.removeItem('token')
     setUser(null)
+    setIsImpersonating(false)
     setUnviewedGradeCount(0)
   }
 
+  const endImpersonation = async () => {
+    sessionStorage.removeItem('token')
+    setIsImpersonating(false)
+    const adminToken = localStorage.getItem('token')
+    if (adminToken) {
+      const me = await getMe()
+      setUser(me)
+      setUnviewedGradeCount(0)
+    } else {
+      setUser(null)
+    }
+  }
+
   return (
-    <Ctx.Provider value={{ user, loading, login, logout, unviewedGradeCount, refreshUnviewedCount }}>
+    <Ctx.Provider value={{ user, loading, login, logout, endImpersonation, isImpersonating, unviewedGradeCount, refreshUnviewedCount }}>
       {children}
     </Ctx.Provider>
   )

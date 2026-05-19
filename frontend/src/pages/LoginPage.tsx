@@ -101,7 +101,7 @@ export default function LoginPage() {
                   className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-600/40 text-slate-300 font-medium rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
                 >
                   <span>👤</span>
-                  {loadingUser ? 'Logging in…' : 'Test user'}
+                  {loadingUser ? 'Logging in…' : 'Student login'}
                 </button>
               </div>
             </>

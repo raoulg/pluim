@@ -173,6 +173,18 @@ async def dev_login_user(db: AsyncSession = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer"}
 
 
+@router.post("/dev-login-as/{user_id}")
+async def dev_login_as(user_id: int, db: AsyncSession = Depends(get_db)):
+    if not settings.dev_mode:
+        raise HTTPException(status_code=404, detail="Not found")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    token = create_jwt(user.id)
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)):
     return user

@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Navbar() {
-  const { user, logout, unviewedGradeCount } = useAuth()
+  const { user, logout, isImpersonating, endImpersonation, unviewedGradeCount } = useAuth()
   const nav = useNavigate()
 
   const handleLogout = () => {
@@ -10,8 +10,26 @@ export default function Navbar() {
     nav('/login')
   }
 
+  const handleEndImpersonation = async () => {
+    await endImpersonation()
+    nav('/')
+  }
+
   return (
     <header className="border-b border-fuchsia-500/25 bg-surface-900/85 backdrop-blur-sm sticky top-0 z-50">
+      {isImpersonating && (
+        <div className="bg-amber-500/10 border-b border-amber-500/25 px-4 py-1.5 flex items-center justify-between gap-4">
+          <span className="text-xs text-amber-300">
+            Viewing as student: <strong>{user?.github_username}</strong>
+          </span>
+          <button
+            onClick={handleEndImpersonation}
+            className="text-xs text-amber-300 hover:text-amber-100 underline transition-colors"
+          >
+            End session →
+          </button>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <picture>

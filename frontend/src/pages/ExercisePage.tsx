@@ -279,6 +279,64 @@ export default function ExercisePage() {
                 </p>
               </div>
 
+              {/* Rubric breakdown */}
+              {template && grade.rubric_scores && (
+                <div className="space-y-3 pt-1 border-t border-emerald-700/30">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Rubric</h3>
+                  {(['verslag', 'code'] as const).map((section) => {
+                    const criteria = template!.criteria.filter((c) => c.section === section)
+                    if (!criteria.length) return null
+                    return (
+                      <div key={section}>
+                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1.5 capitalize">{section}</div>
+                        <div className="space-y-1.5">
+                          {criteria.map((c) => {
+                            const s = grade.rubric_scores![c.id]
+                            if (!s) return null
+                            const cat = s.is_knockout ? 'knockout' : s.score <= 0.4 ? 'onvoldoende' : s.score <= 0.8 ? 'voldoende' : 'uitstekend'
+                            const labels: Record<string, string> = { knockout: 'KO', onvoldoende: 'Onv', voldoende: 'Vold', uitstekend: 'Uitst' }
+                            const colors: Record<string, string> = { knockout: 'bg-red-600 text-white', onvoldoende: 'bg-orange-600 text-white', voldoende: 'bg-blue-600 text-white', uitstekend: 'bg-emerald-600 text-white' }
+                            return (
+                              <div key={c.id} className="bg-surface-800/60 rounded-lg px-3 py-2 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 text-xs rounded font-medium ${colors[cat]}`}>{labels[cat]}</span>
+                                  <span className="text-sm text-slate-300">{c.title}</span>
+                                </div>
+                                {s.remark && (
+                                  <div className="text-xs text-slate-500 pl-1">
+                                    <MarkdownRenderer content={s.remark} />
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {(() => {
+                    const bonusDefs = template!.bonuses ?? []
+                    if (!bonusDefs.length) return null
+                    const bonuses = (grade.rubric_scores!['__bonuses__'] as unknown as Record<string, number>) ?? {}
+                    const awarded = bonusDefs.filter((b) => bonuses[b.id])
+                    if (!awarded.length) return null
+                    return (
+                      <div>
+                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1.5">Bonus</div>
+                        <div className="space-y-1.5">
+                          {awarded.map((b) => (
+                            <div key={b.id} className="bg-surface-800/60 rounded-lg px-3 py-2 flex items-center justify-between">
+                              <span className="text-sm text-slate-300">{b.title}</span>
+                              <span className="text-xs text-emerald-400 font-medium">+{bonuses[b.id]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
               {/* Feedback thread */}
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Feedback</h3>

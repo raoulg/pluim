@@ -8,6 +8,7 @@ import ExercisePage from './pages/ExercisePage'
 import GradingPage from './pages/GradingPage'
 import AdminPage from './pages/AdminPage'
 import CourseManagePage from './pages/CourseManagePage'
+import DevViewAsPage from './pages/DevViewAsPage'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -28,6 +29,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/dev-view-as" element={<DevViewAsPage />} />
       <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
       <Route path="/courses/:courseId" element={<RequireAuth><CoursePage /></RequireAuth>} />
       <Route path="/courses/:courseId/exercises/:exerciseId" element={<RequireAuth><ExercisePage /></RequireAuth>} />
