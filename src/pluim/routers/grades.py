@@ -276,7 +276,23 @@ async def get_unviewed_grade_count(
             Grade.is_published.is_(True),
         )
     )
-    return {"count": result.scalar_one()}
+    count = result.scalar_one()
+
+    first_course_id = None
+    if count > 0:
+        first_result = await db.execute(
+            select(Exercise.course_id)
+            .join(Grade, Grade.exercise_id == Exercise.id)
+            .where(
+                Grade.user_id == user.id,
+                Grade.viewed_at.is_(None),
+                Grade.is_published.is_(True),
+            )
+            .limit(1)
+        )
+        first_course_id = first_result.scalar_one_or_none()
+
+    return {"count": count, "first_course_id": first_course_id}
 
 
 @router.post(

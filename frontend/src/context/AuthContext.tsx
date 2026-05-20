@@ -11,6 +11,7 @@ interface AuthCtx {
   endImpersonation: () => Promise<void>
   isImpersonating: boolean
   unviewedGradeCount: number
+  firstUnviewedCourseId: number | null
   refreshUnviewedCount: () => void
 }
 
@@ -21,14 +22,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [isImpersonating, setIsImpersonating] = useState(false)
   const [unviewedGradeCount, setUnviewedGradeCount] = useState(0)
+  const [firstUnviewedCourseId, setFirstUnviewedCourseId] = useState<number | null>(null)
 
   const fetchUnviewedCount = (currentUser: User | null) => {
     if (!currentUser || currentUser.is_admin) {
       setUnviewedGradeCount(0)
+      setFirstUnviewedCourseId(null)
       return
     }
     getUnviewedGradeCount()
-      .then(({ count }) => setUnviewedGradeCount(count))
+      .then(({ count, first_course_id }) => {
+        setUnviewedGradeCount(count)
+        setFirstUnviewedCourseId(first_course_id)
+      })
       .catch(() => {})
   }
 
@@ -64,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setIsImpersonating(false)
     setUnviewedGradeCount(0)
+    setFirstUnviewedCourseId(null)
   }
 
   const endImpersonation = async () => {
@@ -80,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, login, logout, endImpersonation, isImpersonating, unviewedGradeCount, refreshUnviewedCount }}>
+    <Ctx.Provider value={{ user, loading, login, logout, endImpersonation, isImpersonating, unviewedGradeCount, firstUnviewedCourseId, refreshUnviewedCount }}>
       {children}
     </Ctx.Provider>
   )

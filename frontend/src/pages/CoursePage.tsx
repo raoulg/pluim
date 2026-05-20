@@ -4,10 +4,11 @@ import { format, isPast, isFuture } from 'date-fns'
 import toast from 'react-hot-toast'
 import { getCourse, getExercises } from '../api/courses'
 import { getMySubmission } from '../api/submissions'
+import { getMyGrade } from '../api/grades'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
-import type { Course, Exercise, Submission } from '../types'
+import type { Course, Exercise, Grade, Submission } from '../types'
 
 export default function CoursePage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -16,21 +17,28 @@ export default function CoursePage() {
   const [course, setCourse] = useState<Course | null>(null)
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [submissions, setSubmissions] = useState<Record<number, Submission | null>>({})
+  const [grades, setGrades] = useState<Record<number, Grade | null>>({})
 
   useEffect(() => {
     getCourse(id).then(setCourse).catch(() => toast.error('Failed to load course'))
     getExercises(id).then(async (exs) => {
       setExercises(exs)
       if (!user?.is_admin) {
-        const subs = await Promise.all(exs.map((e) => getMySubmission(e.id).catch(() => null)))
-        const map: Record<number, Submission | null> = {}
-        exs.forEach((e, i) => { map[e.id] = subs[i] })
-        setSubmissions(map)
+        const [subs, grs] = await Promise.all([
+          Promise.all(exs.map((e) => getMySubmission(e.id).catch(() => null))),
+          Promise.all(exs.map((e) => getMyGrade(e.id).catch(() => null))),
+        ])
+        const subMap: Record<number, Submission | null> = {}
+        const gradeMap: Record<number, Grade | null> = {}
+        exs.forEach((e, i) => {
+          subMap[e.id] = subs[i]
+          gradeMap[e.id] = grs[i]
+        })
+        setSubmissions(subMap)
+        setGrades(gradeMap)
       }
     }).catch(() => toast.error('Failed to load exercises'))
   }, [id])
-
-  const now = new Date()
 
   return (
     <Layout>
@@ -78,6 +86,7 @@ export default function CoursePage() {
         {exercises.map((ex) => {
           const isLocked = ex.start_date && isFuture(new Date(ex.start_date))
           const sub = submissions[ex.id] ?? null
+          const grade = grades[ex.id] ?? null
 
           return (
             <Link
@@ -102,7 +111,7 @@ export default function CoursePage() {
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                   {ex.due_date && (
-                    <span className={isPast(new Date(ex.due_date)) ? 'text-red-400' : ''}>
+                    <span className={isPast(new Date(ex.due_date)) && !sub ? 'text-red-400' : ''}>
                       Due {format(new Date(ex.due_date), 'MMM d, HH:mm')}
                     </span>
                   )}
@@ -110,7 +119,7 @@ export default function CoursePage() {
                 </div>
               </div>
               <div className="shrink-0 flex items-center gap-3">
-                {!user?.is_admin && <StatusBadge exercise={ex} submission={sub} />}
+                {!user?.is_admin && <StatusBadge exercise={ex} submission={sub} grade={grade} />}
                 {user?.is_admin && (
                   <span className="text-xs text-slate-500">
                     {ex.grade_type === 'pass_fail' ? 'Pass/Fail' : `${ex.grade_min}–${ex.grade_max}`}

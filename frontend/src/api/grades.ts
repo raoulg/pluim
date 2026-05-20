@@ -16,7 +16,7 @@ export const markGradeViewed = (exerciseId: number) =>
   client.post(`/exercises/${exerciseId}/grades/me/mark-viewed`).catch(() => {})
 
 export const getUnviewedGradeCount = () =>
-  client.get<{ count: number }>('/grades/me/unviewed-count').then((r) => r.data)
+  client.get<{ count: number; first_course_id: number | null }>('/grades/me/unviewed-count').then((r) => r.data)
 
 export const addTeacherFeedback = (
   courseId: number,

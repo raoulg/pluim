@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { getAdminTodoCount } from '../api/grades'
 
 export default function Navbar() {
-  const { user, logout, isImpersonating, endImpersonation, unviewedGradeCount } = useAuth()
+  const { user, logout, isImpersonating, endImpersonation, unviewedGradeCount, firstUnviewedCourseId } = useAuth()
   const nav = useNavigate()
   const [todoCount, setTodoCount] = useState(0)
 
@@ -64,7 +64,7 @@ export default function Navbar() {
               </Link>
             )}
             {!user.is_admin && unviewedGradeCount > 0 && (
-              <Link to="/" className="flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors">
+              <Link to={firstUnviewedCourseId ? `/courses/${firstUnviewedCourseId}` : '/'} className="flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors">
                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
                   {unviewedGradeCount}
                 </span>
