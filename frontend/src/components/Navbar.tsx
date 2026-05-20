@@ -1,9 +1,17 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getAdminTodoCount } from '../api/grades'
 
 export default function Navbar() {
   const { user, logout, isImpersonating, endImpersonation, unviewedGradeCount } = useAuth()
   const nav = useNavigate()
+  const [todoCount, setTodoCount] = useState(0)
+
+  useEffect(() => {
+    if (!user?.is_admin) return
+    getAdminTodoCount().then((d) => setTodoCount(d.count)).catch(() => {})
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -45,6 +53,14 @@ export default function Navbar() {
             {user.is_admin && (
               <Link to="/admin" className="text-sm text-slate-400 hover:text-fuchsia-300 transition-colors">
                 Admin
+              </Link>
+            )}
+            {user.is_admin && todoCount > 0 && (
+              <Link to="/todo" className="flex items-center gap-1.5 text-sm text-fuchsia-400 hover:text-fuchsia-300 transition-colors">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-fuchsia-500/20 text-fuchsia-400 text-xs font-bold">
+                  {todoCount}
+                </span>
+                to grade
               </Link>
             )}
             {!user.is_admin && unviewedGradeCount > 0 && (

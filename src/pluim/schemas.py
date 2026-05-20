@@ -244,3 +244,15 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class TodoItem(BaseModel):
+    student_id: int
+    student_username: str
+    student_avatar: str
+    exercise_id: int
+    exercise_title: str
+    course_id: int
+    course_name: str
+    finalized_at: UTCDatetime
+    has_draft: bool

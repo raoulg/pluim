@@ -9,6 +9,7 @@ import GradingPage from './pages/GradingPage'
 import AdminPage from './pages/AdminPage'
 import CourseManagePage from './pages/CourseManagePage'
 import DevViewAsPage from './pages/DevViewAsPage'
+import TodoPage from './pages/TodoPage'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/courses/:courseId/grade" element={<RequireAdmin><GradingPage /></RequireAdmin>} />
       <Route path="/courses/:courseId/manage" element={<RequireAdmin><CourseManagePage /></RequireAdmin>} />
       <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
+      <Route path="/todo" element={<RequireAdmin><TodoPage /></RequireAdmin>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

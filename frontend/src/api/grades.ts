@@ -1,5 +1,5 @@
 import client from './client'
-import type { Feedback, Grade, RubricScores } from '../types'
+import type { Feedback, Grade, RubricScores, TodoItem } from '../types'
 
 export const getMyGrade = (exerciseId: number) =>
   client.get<Grade | null>(`/exercises/${exerciseId}/grades/me`).then((r) => r.data)
@@ -47,3 +47,10 @@ export const saveRubricScores = (
       { scores, publish, bonuses },
     )
     .then((r) => r.data)
+
+export const getAdminTodo = () =>
+  client.get<TodoItem[]>('/admin/todo').then((r) => r.data)
+
+export const getAdminTodoCount = () =>
+  client.get<{ count: number }>('/admin/todo/count').then((r) => r.data)
+

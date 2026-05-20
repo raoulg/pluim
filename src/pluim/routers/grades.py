@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from pluim.database import get_db
 from pluim.deps import get_current_user, require_admin
-from pluim.models import Exercise, Feedback, Grade, User
+from pluim.models import Course, Exercise, Feedback, Finalization, Grade, User
 from pluim.schemas import (
     FeedbackCreate,
     FeedbackOut,
@@ -15,6 +16,7 @@ from pluim.schemas import (
     GradeOut,
     RubricCriterionScore,
     RubricScoresIn,
+    TodoItem,
     UserOut,
 )
 
@@ -351,3 +353,71 @@ def _validate_grade_value(value: str, exercise: Exercise) -> None:
             raise HTTPException(
                 status_code=400, detail=f"Grade must be at most {exercise.grade_max}"
             )
+
+
+@router.get("/admin/todo", response_model=list[TodoItem])
+async def get_todo(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[TodoItem]:
+    published_grade = aliased(Grade)
+    draft_grade = aliased(Grade)
+
+    rows = (
+        await db.execute(
+            select(Finalization, Exercise, Course, User, draft_grade)
+            .join(Exercise, Finalization.exercise_id == Exercise.id)
+            .join(Course, Exercise.course_id == Course.id)
+            .join(User, Finalization.user_id == User.id)
+            .outerjoin(
+                published_grade,
+                (published_grade.user_id == Finalization.user_id)
+                & (published_grade.exercise_id == Finalization.exercise_id)
+                & published_grade.is_published.is_(True),
+            )
+            .outerjoin(
+                draft_grade,
+                (draft_grade.user_id == Finalization.user_id)
+                & (draft_grade.exercise_id == Finalization.exercise_id)
+                & draft_grade.is_published.is_(False),
+            )
+            .where(published_grade.id.is_(None))
+            .order_by(Finalization.finalized_at)
+        )
+    ).all()
+
+    return [
+        TodoItem(
+            student_id=user.id,
+            student_username=user.github_username,
+            student_avatar=user.github_avatar_url,
+            exercise_id=exercise.id,
+            exercise_title=exercise.title,
+            course_id=course.id,
+            course_name=course.name,
+            finalized_at=fin.finalized_at,
+            has_draft=draft is not None,
+        )
+        for fin, exercise, course, user, draft in rows
+    ]
+
+
+@router.get("/admin/todo/count")
+async def get_todo_count(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    published_grade = aliased(Grade)
+
+    result = await db.execute(
+        select(func.count(Finalization.id))
+        .join(Exercise, Finalization.exercise_id == Exercise.id)
+        .outerjoin(
+            published_grade,
+            (published_grade.user_id == Finalization.user_id)
+            & (published_grade.exercise_id == Finalization.exercise_id)
+            & published_grade.is_published.is_(True),
+        )
+        .where(published_grade.id.is_(None))
+    )
+    return {"count": result.scalar_one()}

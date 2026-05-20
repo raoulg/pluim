@@ -135,3 +135,15 @@ export interface CourseOverview {
   exercises: Exercise[]
   rows: OverviewRow[]
 }
+
+export interface TodoItem {
+  student_id: number
+  student_username: string
+  student_avatar: string
+  exercise_id: number
+  exercise_title: string
+  course_id: number
+  course_name: string
+  finalized_at: string
+  has_draft: boolean
+}
