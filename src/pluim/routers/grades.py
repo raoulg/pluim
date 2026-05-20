@@ -247,6 +247,32 @@ async def save_rubric_scores(
 
 
 @router.post(
+    "/courses/{course_id}/grades/me/mark-all-viewed",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def mark_all_grades_viewed(
+    course_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Grade)
+        .join(Exercise, Grade.exercise_id == Exercise.id)
+        .where(
+            Grade.user_id == user.id,
+            Exercise.course_id == course_id,
+            Grade.viewed_at.is_(None),
+            Grade.is_published.is_(True),
+        )
+    )
+    grades_to_mark = result.scalars().all()
+    now = datetime.now(timezone.utc)
+    for g in grades_to_mark:
+        g.viewed_at = now
+    await db.commit()
+
+
+@router.post(
     "/exercises/{exercise_id}/grades/me/mark-viewed",
     status_code=status.HTTP_204_NO_CONTENT,
 )

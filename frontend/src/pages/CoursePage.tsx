@@ -4,7 +4,7 @@ import { format, isPast, isFuture } from 'date-fns'
 import toast from 'react-hot-toast'
 import { getCourse, getExercises } from '../api/courses'
 import { getMySubmission } from '../api/submissions'
-import { getMyGrade } from '../api/grades'
+import { getMyGrade, markAllGradesViewed } from '../api/grades'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
@@ -13,32 +13,56 @@ import type { Course, Exercise, Grade, Submission } from '../types'
 export default function CoursePage() {
   const { courseId } = useParams<{ courseId: string }>()
   const id = Number(courseId)
-  const { user } = useAuth()
+  const { user, refreshUnviewedCount } = useAuth()
   const [course, setCourse] = useState<Course | null>(null)
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [submissions, setSubmissions] = useState<Record<number, Submission | null>>({})
   const [grades, setGrades] = useState<Record<number, Grade | null>>({})
+
+  const loadStudentData = async (exs: Exercise[]) => {
+    const [subs, grs] = await Promise.all([
+      Promise.all(exs.map((e) => getMySubmission(e.id).catch(() => null))),
+      Promise.all(exs.map((e) => getMyGrade(e.id).catch(() => null))),
+    ])
+    const subMap: Record<number, Submission | null> = {}
+    const gradeMap: Record<number, Grade | null> = {}
+    exs.forEach((e, i) => {
+      subMap[e.id] = subs[i]
+      gradeMap[e.id] = grs[i]
+    })
+    setSubmissions(subMap)
+    setGrades(gradeMap)
+  }
 
   useEffect(() => {
     getCourse(id).then(setCourse).catch(() => toast.error('Failed to load course'))
     getExercises(id).then(async (exs) => {
       setExercises(exs)
       if (!user?.is_admin) {
-        const [subs, grs] = await Promise.all([
-          Promise.all(exs.map((e) => getMySubmission(e.id).catch(() => null))),
-          Promise.all(exs.map((e) => getMyGrade(e.id).catch(() => null))),
-        ])
-        const subMap: Record<number, Submission | null> = {}
-        const gradeMap: Record<number, Grade | null> = {}
-        exs.forEach((e, i) => {
-          subMap[e.id] = subs[i]
-          gradeMap[e.id] = grs[i]
-        })
-        setSubmissions(subMap)
-        setGrades(gradeMap)
+        await loadStudentData(exs)
+        refreshUnviewedCount()
       }
     }).catch(() => toast.error('Failed to load exercises'))
   }, [id])
+
+  const unviewedCount = Object.values(grades).filter(
+    (g) => g?.is_published && g.viewed_at === null
+  ).length
+
+  const handleMarkAllRead = async () => {
+    await markAllGradesViewed(id)
+    setGrades((prev) => {
+      const next = { ...prev }
+      for (const key in next) {
+        const g = next[key]
+        if (g?.is_published && g.viewed_at === null) {
+          next[key] = { ...g, viewed_at: new Date().toISOString() }
+        }
+      }
+      return next
+    })
+    refreshUnviewedCount()
+  }
 
   return (
     <Layout>
@@ -59,22 +83,32 @@ export default function CoursePage() {
               </p>
             )}
           </div>
-          {user?.is_admin && (
-            <div className="flex gap-2 shrink-0">
-              <Link
-                to={`/courses/${id}/grade`}
-                className="px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors"
+          <div className="flex gap-2 shrink-0 items-center">
+            {!user?.is_admin && unviewedCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="px-3 py-2 text-xs text-amber-400 hover:text-amber-300 border border-amber-500/30 hover:border-amber-400/50 rounded-lg transition-colors"
               >
-                Grade overview
-              </Link>
-              <Link
-                to={`/courses/${id}/manage`}
-                className="px-3 py-2 bg-surface-800 hover:bg-surface-700 border border-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
-              >
-                Manage
-              </Link>
-            </div>
-          )}
+                Mark all as read
+              </button>
+            )}
+            {user?.is_admin && (
+              <>
+                <Link
+                  to={`/courses/${id}/grade`}
+                  className="px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Grade overview
+                </Link>
+                <Link
+                  to={`/courses/${id}/manage`}
+                  className="px-3 py-2 bg-surface-800 hover:bg-surface-700 border border-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                >
+                  Manage
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -87,6 +121,7 @@ export default function CoursePage() {
           const isLocked = ex.start_date && isFuture(new Date(ex.start_date))
           const sub = submissions[ex.id] ?? null
           const grade = grades[ex.id] ?? null
+          const isNew = grade?.is_published && grade.viewed_at === null
 
           return (
             <Link
@@ -95,6 +130,8 @@ export default function CoursePage() {
               className={`flex items-center justify-between gap-4 p-4 rounded-xl border transition-all duration-150 ${
                 isLocked && !user?.is_admin
                   ? 'bg-surface-900 border-violet-800/20 opacity-60 cursor-not-allowed'
+                  : isNew
+                  ? 'bg-surface-900 border-amber-500/30 border-l-2 border-l-amber-500/60 hover:border-amber-400/50 hover:bg-surface-800 group'
                   : 'bg-surface-900 border-violet-800/30 border-l-2 border-l-fuchsia-500/35 hover:border-primary-400/55 hover:border-l-primary-400/65 hover:bg-surface-800 group'
               }`}
             >
