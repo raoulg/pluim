@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import MDEditor from '@uiw/react-md-editor'
@@ -446,9 +446,15 @@ function RubricGrader({
 export default function GradingPage() {
   const { courseId } = useParams<{ courseId: string }>()
   const cid = Number(courseId)
+  const [searchParams] = useSearchParams()
+  const autoStudentId = Number(searchParams.get('student')) || null
+  const autoExerciseId = Number(searchParams.get('exercise')) || null
+  const autoOpenHandled = useRef(false)
+
   const [overview, setOverview] = useState<CourseOverview | null>(null)
   const [editing, setEditing] = useState<{ userId: number; exerciseId: number } | null>(null)
   const [reviewStudent, setReviewStudent] = useState<OverviewRow | null>(null)
+  const [reviewInitialExId, setReviewInitialExId] = useState<number | undefined>(undefined)
 
   const load = () =>
     getCourseOverview(cid)
@@ -456,6 +462,16 @@ export default function GradingPage() {
       .catch(() => toast.error('Failed to load overview'))
 
   useEffect(() => { load() }, [cid])
+
+  useEffect(() => {
+    if (!overview || autoOpenHandled.current || !autoStudentId) return
+    autoOpenHandled.current = true
+    const row = overview.rows.find((r) => r.student.id === autoStudentId)
+    if (row) {
+      setReviewStudent(row)
+      setReviewInitialExId(autoExerciseId ?? undefined)
+    }
+  }, [overview])
 
   const handleViewAs = async (userId: number) => {
     try {
@@ -509,10 +525,15 @@ export default function GradingPage() {
 
   return (
     <Layout>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-4">
         <Link to={`/courses/${cid}`} className="text-sm text-primary-400/60 hover:text-primary-300 transition-colors">
           ← {overview.course.name}
         </Link>
+        {autoStudentId && (
+          <Link to="/todo" className="text-sm text-fuchsia-400/60 hover:text-fuchsia-300 transition-colors">
+            ← Grading queue
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-6">
@@ -564,7 +585,7 @@ export default function GradingPage() {
                     />
                     <span className="text-slate-200 font-medium">{row.student.github_username}</span>
                     <button
-                      onClick={() => setReviewStudent(row)}
+                      onClick={() => { setReviewStudent(row); setReviewInitialExId(undefined) }}
                       className="ml-1 text-xs text-slate-600 hover:text-primary-400 transition-colors opacity-0 group-hover:opacity-100"
                       title="Quick review"
                     >
@@ -617,6 +638,7 @@ export default function GradingPage() {
           overview={overview}
           studentRow={reviewStudent}
           courseId={cid}
+          initialExerciseId={reviewInitialExId}
           onClose={() => setReviewStudent(null)}
           onGradeSaved={async () => { await load() }}
         />
@@ -771,16 +793,20 @@ function ReviewModal({
   overview,
   studentRow,
   courseId,
+  initialExerciseId,
   onClose,
   onGradeSaved,
 }: {
   overview: CourseOverview
   studentRow: OverviewRow
   courseId: number
+  initialExerciseId?: number
   onClose: () => void
   onGradeSaved: () => Promise<void>
 }) {
-  const [selectedExId, setSelectedExId] = useState(overview.exercises[0]?.id)
+  const [selectedExId, setSelectedExId] = useState(
+    initialExerciseId ?? overview.exercises[0]?.id
+  )
 
   // Always use the freshest version of this student's row from the overview
   const currentRow = overview.rows.find((r) => r.student.id === studentRow.student.id) ?? studentRow

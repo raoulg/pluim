@@ -58,7 +58,7 @@ export default function TodoPage() {
               {courseItems.map((item) => (
                 <Link
                   key={`${item.student_id}-${item.exercise_id}`}
-                  to={`/courses/${item.course_id}/grade`}
+                  to={`/courses/${item.course_id}/grade?student=${item.student_id}&exercise=${item.exercise_id}`}
                   className="flex items-center gap-4 bg-surface-900 border border-violet-800/30 border-l-2 border-l-fuchsia-500/40 rounded-xl px-4 py-3 hover:border-primary-400/60 hover:bg-surface-800 transition-all duration-150 group"
                 >
                   <img
